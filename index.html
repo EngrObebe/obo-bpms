@@ -6870,7 +6870,8 @@ function zcCompute(use,cost){const S=ZC_SCHED[use];cost=+cost||0;if(!S||!(S.rows
   for(const[upto,fee]of rows)if(cost<=+upto)return{fee:+fee,how:`project cost ₱${num2(cost)} ≤ ₱${num2(+upto)} → ₱${num2(+fee)}`};
   const last=rows[rows.length-1]||[0,0];const base=+(S.base!=null&&S.base!==""?S.base:last[1])||0,pct=+S.pct||0,ex=cost-(+last[0]||0);const fee=Math.round((base+ex*pct/100)*100)/100;
   return{fee,how:`₱${num2(base)} + ${pct}% of ₱${num2(ex)} in excess of ₱${num2(+last[0]||0)} = ₱${num2(fee)}`}}
-function zcCostOf(a){const x=a.assessId&&assessCache.find(z=>z.id===a.assessId);if(x){try{const R=BPFees.compute(toEngine(x));return +x.projCost||R.totalCost||0}catch(e){return +x.projCost||0}}return 0}
+function zcCosts(a){const x=a.assessId&&assessCache.find(z=>z.id===a.assessId);let std=0,bom=0;if(x){bom=+x.projCost||0;try{std=+BPFees.compute(toEngine(x)).totalCost||0}catch(e){}}return{std,bom,hi:Math.max(std,bom)}}
+function zcCostOf(a){return zcCosts(a).hi}
 function zcCardHtml(a){const z=a.zc||{};if(!z.on)return`<div class="dcard"><h3>Zoning / locational clearance</h3><p class="sub" style="margin:0 0 6px">Optional. The Zoning Officer computes and issues the clearance; record it here so it shows in the checklist and the collections.</p><button class="btn small" id="zcOn">Add zoning clearance</button></div>`;
   const pin=appPinOf(a),zone=pin&&ZONING?zoneAt(pin.lat,pin.lng):"",use=ZC_CATS.includes(z.use)?z.use:zcCatOf(a),cost=z.cost!=null&&z.cost!==""?z.cost:(zcCostOf(a)||""),sug=zcCompute(use,cost);
   const f=(k,l,t,ph)=>`<label class="f"><span>${l}</span><input data-zc="${k}" ${t?`type="${t}"`:""} value="${esc(z[k]??(k==="cost"?cost:""))}" placeholder="${esc(ph||"")}"></label>`;
@@ -6881,10 +6882,14 @@ function zcCardHtml(a){const z=a.zc||{};if(!z.on)return`<div class="dcard"><h3>Z
     ${f("cost","Project cost (₱)","","from the assessment")}${f("fee","Zoning/locational clearance fee (₱)")}
     <label class="pill" style="align-self:end"><input type="checkbox" data-zcx="xapp" ${z.xapp?"checked":""}> Application fee ₱${ZC_OTHER.app[1]}</label><label class="pill" style="align-self:end"><input type="checkbox" data-zcx="xinsp" ${z.xinsp?"checked":""}> Inspection fee ₱${ZC_OTHER.insp[1]}</label>
     ${f("certHa","Zoning certification — hectares (₱500/ha)","","only if requested")}<label class="f"><span>Total to pay (₱)</span><input disabled value="${num2(zcTotal(z))}"></label>${f("or","OR no.")}${f("paid","Date paid","date")}${f("no","Clearance no.")}${f("date","Date issued","date")}${f("remarks","Remarks / conditions")}</div>
+   ${(()=>{const C=zcCosts(a);if(!C.std&&!C.bom)return`<p class="sub" style="margin:6px 0 0">No assessment yet — type the project cost from the applicant's bill of materials / cost estimate.</p>`;
+     const b=(v,l)=>v?`<button class="btn small" data-zccost="${v}" ${+cost===v?'aria-pressed="true"':""}>${l}: ₱${num2(v)}</button>`:"";
+     return`<div class="row" style="margin-top:6px;align-items:center;gap:6px"><span class="sub" style="margin:0">Project cost basis:</span>${b(C.bom,"BOM / declared by the applicant")}${b(C.std,"Standard (unit cost × floor area)")}<span class="sub" style="margin:0">— default is the higher of the two; the Zoning Officer decides.</span></div>`})()}
    <div class="row" style="margin-top:6px;align-items:center">${sug?`<span class="sub" style="margin:0">Schedule: ${esc(sug.how)}</span><button class="btn small" id="zcUse">Use ₱${num2(sug.fee)}</button>`:`<span class="sub" style="margin:0">${use?"No fee schedule set for "+esc(use)+" (Data → Zoning).":"Choose the use to see the schedule."} The Zoning Officer may type the fee directly.</span>`}
     <button class="btn small" id="zcPrint">Print zoning fee assessment</button><button class="btn small danger" id="zcOff">Remove</button></div></div>`}
 function bindZc(a,rerender){const on=$("#zcOn");if(on)on.onclick=()=>{a.zc={on:true,by:ZC_OFFICER.name||""};rerender()};
   document.querySelectorAll("#appBody [data-zc]").forEach(i=>i.addEventListener(i.tagName==="SELECT"||i.type==="date"?"change":"input",()=>{a.zc=a.zc||{on:true};a.zc[i.dataset.zc]=i.value;if(i.tagName==="SELECT"||i.dataset.zc==="cost"&&i.type!=="date")clearTimeout(bindZc._t),bindZc._t=setTimeout(rerender,i.tagName==="SELECT"?0:700)}));
+  document.querySelectorAll("#appBody [data-zccost]").forEach(b=>b.onclick=()=>{a.zc.cost=b.dataset.zccost;rerender()});
   document.querySelectorAll("#appBody [data-zcx]").forEach(c=>c.onchange=()=>{a.zc[c.dataset.zcx]=c.checked;rerender()});
   const u=$("#zcUse");if(u)u.onclick=()=>{const z=a.zc;const s=zcCompute(ZC_CATS.includes(z.use)?z.use:zcCatOf(a),z.cost!=null&&z.cost!==""?z.cost:zcCostOf(a));if(s){z.fee=String(s.fee);z.feeHow=s.how;rerender()}};
   const off=$("#zcOff");if(off)off.onclick=()=>{if(confirm("Remove the zoning clearance record from this application?")){delete a.zc;rerender()}};
