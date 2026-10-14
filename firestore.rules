@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only OBO staff accounts listed here can read or write. Add each staff email in lowercase.
+    function isStaff() {
+      return request.auth != null && request.auth.token.email in [
+        'michaelvincentestradaobena2019@gmail.com'
+      ];
+    }
+    match /{document=**} {
+      allow read, write: if isStaff();
+    }
+  }
+}
