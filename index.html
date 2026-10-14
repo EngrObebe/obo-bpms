@@ -7011,7 +7011,7 @@ function evalCardHtml(a){if(!evShow(a))return"";const D=EVAL_DISC.map(d=>({d,...
       <div class="row" style="margin-top:6px;align-items:flex-end"><label class="f" style="flex:1 1 200px"><span>Evaluated by</span><input data-evby="${d.k}" list="evStaff" value="${esc(e.by||USER_NAME||"")}"></label><label class="f" style="flex:0 0 160px"><span>Date</span><input type="date" data-evdt="${d.k}" value="${esc(e.date||"")}"></label>
        <button class="btn small" data-evall="${d.k}">Mark the rest complied</button><button class="btn small" data-evedit="${d.k}">Edit the list</button></div>`:""}</details>`).join("")}
    <datalist id="evStaff">${staff.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>
-   <div class="row" style="margin-top:6px"><button class="btn small" id="evPrint">Print evaluation sheets</button>${on.some(x=>x.no)?`<button class="btn small" id="evNotice">Print notice of plan deficiencies</button>`:""}</div></div>`}
+   <div class="row" style="margin-top:6px"><button class="btn small primary" id="evRef">📖 NBC minimum requirements</button><button class="btn small" id="evPrint">Print evaluation sheets</button>${on.some(x=>x.no)?`<button class="btn small" id="evNotice">Print notice of plan deficiencies</button>`:""}</div></div>`}
 function bindEval(a,rerender){const root=$("#appBody");if(!root||!evShow(a))return;const D=k=>EVAL_DISC.find(d=>d.k===k);
   root.querySelectorAll("[data-evd]").forEach(el=>el.addEventListener("toggle",()=>{el.open?EV_OPEN.add(el.dataset.evd):EV_OPEN.delete(el.dataset.evd)}));
   const stamp=e=>{if(!e.date)e.date=today();if(!e.by)e.by=USER_NAME||""};
@@ -7024,6 +7024,7 @@ function bindEval(a,rerender){const root=$("#appBody");if(!root||!evShow(a))retu
   root.querySelectorAll("[data-evall]").forEach(b=>b.onclick=()=>{const d=D(b.dataset.evall),e=evOf(a,d);evItems(d).forEach((t,i)=>{if(!e.r[i])e.r[i]="ok"});stamp(e);EV_OPEN.add(d.k);after()});
   root.querySelectorAll("[data-evedit]").forEach(b=>b.onclick=async()=>{const d=D(b.dataset.evedit);const t=prompt(`${d.l} — one item per line (separate with | ). Leave empty to restore the default list.`,evItems(d).join(" | "));if(t===null)return;
     const L=t.split("|").map(s=>s.trim()).filter(Boolean);EVAL_LISTS={...EVAL_LISTS};if(L.length)EVAL_LISTS[d.k]=L;else delete EVAL_LISTS[d.k];await DB.set("evalLists",EVAL_LISTS);EV_OPEN.add(d.k);rerender()});
+  const rf=$("#evRef");if(rf)rf.onclick=()=>openNbcRef("");
   const pr=$("#evPrint");if(pr)pr.onclick=async()=>{await appSaveQuiet(a);audit("print-eval",a.no,a.name);printReport(evalSheetsHtml(a))};
   const nt=$("#evNotice");if(nt)nt.onclick=async()=>{await appSaveQuiet(a);audit("print-eval-notice",a.no,a.name);printReport(evalNoticeHtml(a))}}
 function evalSheetsHtml(a){const on=EVAL_DISC.map(d=>({d,...evStat(a,d)})).filter(x=>x.e.on);if(!on.length)return`<div class="rpage"><p>No discipline marked applicable.</p></div>`;
@@ -7042,6 +7043,80 @@ function evalNoticeHtml(a){const on=EVAL_DISC.map(d=>({d,...evStat(a,d)})).filte
    <p style="text-align:justify">This notice is issued within the prescribed processing time pursuant to Section 9 of RA 11032. For clarification, please approach this Office during office hours.</p>
    <div style="margin-top:28px;width:3.2in;margin-left:auto;text-align:center"><b style="display:block;border-bottom:1px solid #111;text-transform:uppercase">${esc(BO_NAME)}</b>${esc(BO_TITLE)}</div>
    <p style="margin-top:20px;font-size:9.5pt">Received by: ____________________________ &nbsp; Date / time: ____________________</p>${privacyHtml(7.5)}</div>`}
+
+/* ================= NBC quick reference (minimum requirements) — editable by the office ================= */
+const NBC_REF_DEFAULT=[
+ {g:"Rooms and ceiling heights",src:"PD 1096 (text of the law), Sec. 805–806",ok:1,rows:[
+  ["Ceiling height — habitable rooms with artificial ventilation","not less than 2.40 m (floor to ceiling)","Sec. 805(a)"],
+  ["Ceiling height — habitable rooms with natural ventilation","not less than 2.70 m","Sec. 805(a)"],
+  ["Mezzanine floor","clear height not less than 1.80 m above and below","Sec. 805(b)"],
+  ["Room for human habitation","6.00 m², least dimension 2.00 m","Sec. 806(1)"],
+  ["Kitchen","3.00 m², least dimension 1.50 m","Sec. 806(2)"],
+  ["Bath and toilet","1.20 m², least dimension 0.90 m","Sec. 806(3)"]]},
+ {g:"Light, ventilation, air space and courts",src:"PD 1096 (text of the law), Sec. 804, 807, 808, 810, 811",ok:1,rows:[
+  ["Window openings — rooms for human habitation","total free area at least 10% of the floor area of the room","Sec. 808"],
+  ["Toilet, bath, laundry and similar rooms","window area at least 1/20 of the floor area (IRR) — verify the minimum in your copy","Sec. 808 / IRR"],
+  ["Skylights used instead of windows","glass area not less than that required for the windows replaced","Sec. 810"],
+  ["Court — minimum horizontal dimension","not less than 2.00 m","Sec. 804(a)"],
+  ["Air space — habitable rooms","14.00 m³ per person","Sec. 807(3)"],
+  ["Air space — workshops, factories, offices","12.00 m³ per person","Sec. 807(2)"],
+  ["Air space — school rooms","3.00 m³ and 1.00 m² floor area per person","Sec. 807(1)"],
+  ["Artificial ventilation (certain offices, stores, factories)","not less than 3 air changes per hour","Sec. 811(b)"]]},
+ {g:"Openings near the property line",src:"Civil Code of the Philippines, Art. 670",ok:1,rows:[
+  ["Windows, balconies with direct views toward the neighbor","at least 2.00 m from the boundary","Art. 670"],
+  ["Side or oblique views","at least 0.60 m from the boundary","Art. 670"]]},
+ {g:"Stairs",src:"Revised IRR of PD 1096, Sec. 1207 — check against your copy",ok:0,rows:[
+  ["Riser (rise)","maximum 200 mm; variation within a flight max 5 mm","1207(e)(2)"],
+  ["Tread (run)","minimum 250 mm","1207(e)(2)"],
+  ["Width — private stair (occupant load below 10)","minimum 750 mm","1207(e)(1)"],
+  ["Width — occupant load 50 or less","minimum 900 mm","1207(e)(1)"],
+  ["Width — occupant load more than 50","minimum 1.10 m","1207(e)(1)"],
+  ["Headroom","minimum 2.00 m, from the nosing line to the soffit","1207(e)(12)"],
+  ["Vertical rise between landings","maximum 3.60 m","1207(e)(7)"],
+  ["Landing depth","not less than the stair width (need not exceed 1.20 m on a straight run)","1207(e)(5)"],
+  ["Handrails","800–900 mm above the nosing; not required for fewer than 4 risers","1207(e)(8)"]]},
+ {g:"Setbacks — residential (newly developed subdivisions)",src:"Revised IRR of PD 1096, Rule VIII, Table VIII.2 — check against your copy",ok:0,rows:[
+  ["R-1 (low density, single-detached)","front 4.50 m · side 2.00 m · rear 2.00 m","Table VIII.2"],
+  ["R-2 basic","front 3.00 m · side 2.00 m (one side) · rear 2.00 m","Table VIII.2"],
+  ["R-2 / R-3 maximum (multiple family)","front 8.00 m at grade (incl. 5.00 m parking), 3.00 m upper floors · side 2.00 m · rear 2.00 m","Table VIII.2"],
+  ["R-3 basic","front 3.00 m · abutments allowed on two sides and rear (Sec. 804)","Table VIII.2"],
+  ["R-4 townhouse","front 4.50 m · side 2.00 m (optional) · rear 2.00 m","Table VIII.2"],
+  ["R-5 condominium","front 6.00 m · side 3.00 m · rear 3.00 m","Table VIII.2"],
+  ["Where yards cannot be attained","side/rear abutments allowed with a 1.50 m open front transition yard","Table VIII.2 note"]]},
+ {g:"Setbacks — non-residential (by road right-of-way)",src:"Revised IRR of PD 1096, Rule VIII, Table VIII.3 — check against your copy",ok:0,rows:[
+  ["RROW 30.00 m and above","front 8.00 m · side 5.00 m · rear 5.00 m","Table VIII.3"],
+  ["RROW 25.00–29.00 m","front 6.00 m · side 3.00 m · rear 3.00 m","Table VIII.3"],
+  ["RROW 20.00–24.00 m","front 5.00 m · side 3.00 m · rear 3.00 m","Table VIII.3"],
+  ["RROW below 20.00 m","front 5.00 m · side 2.00 m · rear 2.00 m","Table VIII.3"]]},
+ {g:"Site occupancy (first-tier values, % of lot area)",src:"Revised IRR of PD 1096, Rule VIII, Table VIII.1 — check against your copy (no R-1 row in the source used)",ok:0,rows:[
+  ["Basic R-2 (BHL 10 m)","PSO 55% · ISA 30% · USA 15%","Table VIII.1"],
+  ["Maximum R-2 (BHL 15 m)","PSO 60% · ISA 30% · USA 10%","Table VIII.1"],
+  ["Basic R-3 (BHL 10 m)","PSO 65% · ISA 20% · USA 15%","Table VIII.1"],
+  ["Maximum R-3, R-4, R-5, Commercial-1","PSO 70% · ISA 20% · USA 10%","Table VIII.1"]]},
+ {g:"Accessibility (BP 344)",src:"BP 344 and its Revised IRR (2024) as summarized — verify against the official IRR",ok:0,rows:[
+  ["Ramps — maximum slope","1:20 (1:15 if run ≤ 10.5 m and rise ≤ 0.70 m)","IRR"],
+  ["Ramps — width; landings","min 1.20 m wide; 1.80 m landings at top and bottom; intermediate landing at most every 10.5 m of run","IRR"],
+  ["Handrails","at 0.70 m and 0.90 m, extending 0.30 m beyond the ends","IRR"],
+  ["Doors","clear opening min 0.90 m; threshold max 12 mm","IRR"],
+  ["Accessible toilet cubicle","min 1.80 × 1.80 m; seat 0.45 m high; grab bars","IRR"],
+  ["Accessible parking slot","4.00 × 5.00 m plus 1.20 m aisle; at least 1 slot for lots of 25 or fewer","IRR"],
+  ["Coverage","public and commercial buildings, apartments, dormitories, hotels, terminals, parks; single-family homes generally excluded","IRR"]]}];
+let NBC_REF=null;(async()=>{try{NBC_REF=await DB.get("nbcRef")}catch(e){}})();
+const nbcRef=()=>NBC_REF&&NBC_REF.length?NBC_REF:NBC_REF_DEFAULT;
+function openNbcRef(q){let d=document.getElementById("nbcDlg");if(!d){d=document.createElement("div");d.id="nbcDlg";d.className="tdlg";document.body.appendChild(d)}d.hidden=false;let edit=false;
+  const draw=()=>{const G=nbcRef(),T=toks(q||"");const hit=r=>!T.length||T.every(t=>toks(r.join(" ")).join(" ").includes(t));
+    d.innerHTML=`<div class="tdlg-box" role="dialog" aria-label="NBC quick reference" style="width:min(860px,100%)">
+     <div class="row" style="justify-content:space-between"><b style="font-size:16px">NBC minimum requirements — quick reference</b><button class="btn" id="nbX" aria-label="Close">✕</button></div>
+     <div class="row"><input id="nbQ" type="search" placeholder="Search: stair, toilet, setback, window…" value="${esc(q||"")}" style="flex:1 1 240px"><button class="btn small" id="nbEd">${edit?"Save changes":"Edit (office)"}</button>${NBC_REF?`<button class="btn small" id="nbRs">Restore default</button>`:""}<button class="btn small" id="nbPr">Print</button></div>
+     <p class="muted" style="font-size:11.5px;margin:0">For quick checking during evaluation. <b style="color:var(--ok)">✓</b> = taken from the text of PD 1096 / Civil Code. <b style="color:var(--warn)">check</b> = from the IRR as summarized — confirm once against the office copy, then correct here with Edit (shared with all staff). The book and the local zoning ordinance prevail.</p>
+     ${G.map((s,gi)=>{const R=s.rows.map((r,ri)=>({r,ri})).filter(o=>hit([s.g,...o.r]));if(!R.length&&!edit)return"";return`<div><b style="font-size:13.5px">${esc(s.g)}</b> ${s.ok?`<span class="chip s-permit">✓ ${esc(s.src)}</span>`:`<span class="chip s-verify">check · ${esc(s.src)}</span>`}
+      <div class="tablewrap" style="margin-top:4px"><table class="dtable"><thead><tr><th style="text-align:left">Item</th><th style="text-align:left">Minimum / limit</th><th style="text-align:left">Ref.</th></tr></thead><tbody>
+      ${(edit?s.rows.map((r,ri)=>({r,ri})):R).map(({r,ri})=>`<tr>${r.map((c,ci)=>`<td style="text-align:left;white-space:normal" ${edit?`contenteditable="true" data-nb="${gi}|${ri}|${ci}" style="text-align:left;white-space:normal;outline:1px dashed var(--line)"`:""}>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`}).join("")}</div>`;
+    d.querySelector("#nbX").onclick=()=>d.hidden=true;const qi=d.querySelector("#nbQ");qi.oninput=()=>{q=qi.value;const p=qi.selectionStart;draw();const n=d.querySelector("#nbQ");n.focus();n.setSelectionRange(p,p)};
+    d.querySelector("#nbEd").onclick=async()=>{if(!edit){edit=true;draw();return}const G2=JSON.parse(JSON.stringify(nbcRef()));d.querySelectorAll("[data-nb]").forEach(c=>{const[g,r,k]=c.dataset.nb.split("|").map(Number);G2[g].rows[r][k]=c.textContent.trim()});
+      NBC_REF=G2;await DB.set("nbcRef",G2);audit("nbc-ref-edit","","");edit=false;toast("Reference saved for all staff");draw()};
+    const rs=d.querySelector("#nbRs");if(rs)rs.onclick=async()=>{if(!confirm("Restore the original reference values?"))return;NBC_REF=null;await DB.set("nbcRef",[]);draw()};
+    d.querySelector("#nbPr").onclick=()=>printReport(`<div class="rpage" style="font-size:9pt">${rptHead("NBC MINIMUM REQUIREMENTS — QUICK REFERENCE","For evaluation use · the official text prevails")}${nbcRef().map(s=>`<p style="margin:8px 0 2px"><b>${esc(s.g)}</b> <i>(${esc(s.src)})</i></p><table><tbody>${s.rows.map(r=>`<tr><td class="l" style="width:42%">${esc(r[0])}</td><td class="l">${esc(r[1])}</td><td class="l" style="width:14%">${esc(r[2])}</td></tr>`).join("")}</tbody></table>`).join("")}</div>`)};draw()}
 
 /* ---- 7. Alerts: what needs action today ---- */
 let ALERTS=[];
@@ -7249,6 +7324,7 @@ const WHATS_NEW=[
   "Reports: Monthly report to the Mayor; Certificate of Annual Inspection (CAI) with numbering",
   "Year-end close: summary, permanent backup and numbering check",
   "New name: OBO-BPMS Santo Tomas (Building Permit Management System)",
+  "NBC minimum requirements quick reference (rooms, ceiling heights, windows, courts, Civil Code views, stairs, setbacks, site occupancy, BP 344) — searchable and editable by the office",
   "Plan evaluation per discipline in the application (architectural, civil/structural, electrical, sanitary/plumbing, mechanical, electronics) with evaluation sheets and a notice of plan deficiencies",
   "Dashboard: period and barangay filters (click a barangay), year-on-year change, office performance, applications by step, collections per month, occupancy groups, biggest projects, geotagging progress, violations by stage",
   "Optional zoning / locational clearance fee in the application (entered or computed by the Zoning Officer from an editable schedule; shown in daily collections)",
@@ -7661,7 +7737,7 @@ function inspFieldset(cur){const L=cur.insp||[];return`<fieldset><legend>Inspect
   ${L.length?`<div class="list">${L.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`<div class="item" style="cursor:default"><div class="t"><b style="font-size:12.5px">${esc(x.type)}</b><span class="row" style="gap:6px;flex-wrap:nowrap"><span class="mono">${esc(x.date)}</span><button class="btn small danger" data-rmi="${esc(x.id)}" aria-label="Remove">×</button></span></div><div class="meta" style="color:var(--ink)">${x.stage?"<b>"+esc(x.stage)+":</b> ":""}${esc(x.result)}${x.remarks?" — "+esc(x.remarks):""}</div>${x.by?`<div class="meta">${esc(x.by)}</div>`:""}${x.items?`<div><button class="btn small" data-ipr="${esc(x.id)}">Print report</button></div>`:""}</div>`).join("")}</div>`:`<div class="muted" style="font-size:12.5px">No inspections logged.</div>`}
   <div class="row"><input id="in_date" type="date" value="${today()}" style="flex:0 1 150px" aria-label="Date"><select id="in_type" style="flex:1 1 180px" aria-label="Type">${INSP_TYPES.map(t=>`<option>${t}</option>`).join("")}</select></div>
   <div class="row"><select id="in_res" style="flex:0 1 170px" aria-label="Result"><option>Satisfactory</option><option>With deficiencies</option><option>Not accessible</option></select><input id="in_rem" placeholder="Findings / remarks" style="flex:1 1 180px"><button class="btn small primary" id="in_add">Add</button></div>
-  <div class="row"><button class="btn small" id="in_chk">Checklist inspection (with report)</button>${statusOf(cur)==="permit"?`<button class="btn small" id="in_cai">Certificate of Annual Inspection</button>`:""}</div></fieldset>`}
+  <div class="row"><button class="btn small" id="in_chk">Checklist inspection (with report)</button><button class="btn small" type="button" onclick="openNbcRef('')">📖 NBC reference</button>${statusOf(cur)==="permit"?`<button class="btn small" id="in_cai">Certificate of Annual Inspection</button>`:""}</div></fieldset>`}
 function bindInsp(cur){const a=$("#in_add");if(a)a.onclick=()=>{const x={id:uid(),date:$("#in_date").value||today(),type:$("#in_type").value,result:$("#in_res").value,remarks:$("#in_rem").value.trim(),by:cur.inspector||USER_NAME||""};
   (cur.insp=cur.insp||[]).push(x);if(!cur.inspDate||x.date>cur.inspDate)cur.inspDate=x.date;audit("inspect",cur.owner||cur.permitNo||"",`${x.type}: ${x.result}`);renderForm();toast("Inspection added — press Save")};
   document.querySelectorAll("[data-rmi]").forEach(b=>b.onclick=()=>{cur.insp=(cur.insp||[]).filter(x=>x.id!==b.dataset.rmi);renderForm()});
