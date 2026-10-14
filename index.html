@@ -5450,7 +5450,7 @@ function collRows(a,b){const L=[];
   for(const r of REG){if(r.k!=="permit")continue;
     if(!r.exempt&&+r.fees>0&&inRange(r.paid||r.date,a,b))L.push({date:isoOf(r.paid||r.date),or:r.orNo||"",payor:r.name,nature:(r.typeLabel||r.type)+" fees",ref:r.pno||r.no,amt:+r.fees});
     if(r.op&&+r.op.fees>0&&inRange(r.op.paid||r.op.date,a,b))L.push({date:isoOf(r.op.paid||r.op.date),or:r.op.or||"",payor:r.name,nature:"Certificate of occupancy fees",ref:r.opNo||r.pno||r.no,amt:+r.op.fees})}
-  for(const x of APPS){const z=x.zc;if(z&&z.on&&+z.fee>0&&z.paid&&z.paid>=a&&z.paid<=b)L.push({date:z.paid,or:z.or||"",payor:x.name,nature:"Zoning / locational clearance fee",ref:z.no||x.no,amt:+z.fee})}
+  for(const x of APPS){const z=x.zc;if(z&&z.on&&zcTotal(z)>0&&z.paid&&z.paid>=a&&z.paid<=b)L.push({date:z.paid,or:z.or||"",payor:x.name,nature:"Zoning / locational clearance fee",ref:z.no||x.no,amt:zcTotal(z)})}
   for(const x of APPS){if(!isNM(x))continue;
     if(+x.epFee>0&&x.epPaid&&x.epPaid>=a&&x.epPaid<=b&&!REG.some(r=>r.type==="EP"&&r.appNo===x.no))L.push({date:x.epPaid,or:x.epOr||"",payor:x.name,nature:"Net-metering electrical permit",ref:x.epNo||x.no,amt:+x.epFee});
     if(+x.cfFee>0&&x.cfPaid&&x.cfPaid>=a&&x.cfPaid<=b)L.push({date:x.cfPaid,or:x.cfOr||"",payor:x.name,nature:"Net-metering CFEI",ref:x.cfeiNo||x.no,amt:+x.cfFee})}
@@ -6853,39 +6853,53 @@ if(location.protocol==="https:"&&"serviceWorker" in navigator){navigator.service
     b.innerHTML=`<div class="tdlg-box" style="pointer-events:auto;width:min(420px,100%);flex-direction:row;align-items:center;justify-content:space-between"><span>A new version of OBO-BPMS is ready.</span><button class="btn primary" id="swRe">Update now</button></div>`;document.body.appendChild(b);b.querySelector("#swRe").onclick=()=>location.reload()}})}
 
 /* ---- Zoning / locational clearance fee (optional; computed and signed by the Zoning Officer) ---- */
-let ZC_SCHED={},ZC_OFFICER={name:"",title:"Municipal Zoning Officer"};
-(async()=>{try{ZC_SCHED=(await DB.get("zcSchedule"))||{};const o=await DB.get("zcOfficer");if(o)ZC_OFFICER=o}catch(e){}})();
-const ZC_CATS=["Residential","Commercial","Institutional","Industrial","Agricultural","Mixed use"];
+/* Default rates: Municipal Ordinance No. 1-2021 (Revised Revenue Code), Art. D, Sec. 41 — HLURB rates. Brackets of B and the 0.1% of A follow the HLURB schedule (see note). */
+const ZC_DEFAULT={"Single residential (attached / detached)":{rows:[["100000","288"],["200000","576"]],base:"720",pct:"0.1"},
+ "Apartment / townhouse":{rows:[["500000","1440"],["2000000","2160"]],base:"3600",pct:"0.1"},
+ "Dormitory":{rows:[["2000000","3600"]],base:"3600",pct:"0.1"},
+ "Institutional":{rows:[["2000000","2880"]],base:"2880",pct:"0.1"},
+ "Commercial / industrial / agro-industrial":{rows:[["100000","1440"],["500000","2160"],["1000000","2880"],["2000000","4320"]],base:"7200",pct:"0.1"},
+ "Special use / project (gasoline station, cell site, slaughterhouse, treatment plant, etc.)":{rows:[["2000000","7200"]],base:"7200",pct:"0.1"}};
+const ZC_OTHER={app:["Application fee",200],insp:["Inspection fee",300]},ZC_CERT_HA=500;
+let ZC_SCHED=JSON.parse(JSON.stringify(ZC_DEFAULT)),ZC_OFFICER={name:"",title:"Municipal Zoning Officer"};
+(async()=>{try{const s=await DB.get("zcSchedule");if(s&&Object.keys(s).some(k=>k in ZC_DEFAULT))ZC_SCHED=s;const o=await DB.get("zcOfficer");if(o)ZC_OFFICER=o}catch(e){}})();
+const ZC_CATS=Object.keys(ZC_DEFAULT);
+const zcCatOf=a=>{const u=useOfApp(a);return u==="Residential"?ZC_CATS[0]:u==="Institutional"?"Institutional":/Commercial|Industrial|Agricultural|Mixed/.test(u||"")?ZC_CATS[4]:""};
+function zcTotal(z){const b=+z.fee||0,x=(z.xapp?ZC_OTHER.app[1]:0)+(z.xinsp?ZC_OTHER.insp[1]:0)+(+z.certHa>0?Math.ceil(+z.certHa)*ZC_CERT_HA:0);return Math.round((b+x)*100)/100}
 function zcCompute(use,cost){const S=ZC_SCHED[use];cost=+cost||0;if(!S||!(S.rows||[]).length)return null;const rows=S.rows.filter(r=>+r[0]>0).sort((a,b)=>a[0]-b[0]);
   for(const[upto,fee]of rows)if(cost<=+upto)return{fee:+fee,how:`project cost ₱${num2(cost)} ≤ ₱${num2(+upto)} → ₱${num2(+fee)}`};
   const last=rows[rows.length-1]||[0,0];const base=+(S.base!=null&&S.base!==""?S.base:last[1])||0,pct=+S.pct||0,ex=cost-(+last[0]||0);const fee=Math.round((base+ex*pct/100)*100)/100;
   return{fee,how:`₱${num2(base)} + ${pct}% of ₱${num2(ex)} in excess of ₱${num2(+last[0]||0)} = ₱${num2(fee)}`}}
 function zcCostOf(a){const x=a.assessId&&assessCache.find(z=>z.id===a.assessId);if(x){try{const R=BPFees.compute(toEngine(x));return +x.projCost||R.totalCost||0}catch(e){return +x.projCost||0}}return 0}
 function zcCardHtml(a){const z=a.zc||{};if(!z.on)return`<div class="dcard"><h3>Zoning / locational clearance</h3><p class="sub" style="margin:0 0 6px">Optional. The Zoning Officer computes and issues the clearance; record it here so it shows in the checklist and the collections.</p><button class="btn small" id="zcOn">Add zoning clearance</button></div>`;
-  const pin=appPinOf(a),zone=pin&&ZONING?zoneAt(pin.lat,pin.lng):"",use=z.use||useOfApp(a)||"",cost=z.cost!=null&&z.cost!==""?z.cost:(zcCostOf(a)||""),sug=zcCompute(use,cost);
+  const pin=appPinOf(a),zone=pin&&ZONING?zoneAt(pin.lat,pin.lng):"",use=ZC_CATS.includes(z.use)?z.use:zcCatOf(a),cost=z.cost!=null&&z.cost!==""?z.cost:(zcCostOf(a)||""),sug=zcCompute(use,cost);
   const f=(k,l,t,ph)=>`<label class="f"><span>${l}</span><input data-zc="${k}" ${t?`type="${t}"`:""} value="${esc(z[k]??(k==="cost"?cost:""))}" placeholder="${esc(ph||"")}"></label>`;
   return`<div class="dcard"><h3>Zoning / locational clearance</h3>
    <p class="sub" style="margin:0 0 6px">Computed and issued by the Zoning Officer${ZC_OFFICER.name?" ("+esc(ZC_OFFICER.name)+")":""}. Zone at the pin: <b>${esc(zone||"—")}</b>.</p>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
-    <label class="f"><span>Use</span><select data-zc="use"><option value="">—</option>${ZC_CATS.map(c=>`<option ${use===c?"selected":""}>${c}</option>`).join("")}</select></label>
-    ${f("cost","Project cost (₱)","","from the assessment")}${f("fee","Zoning fee (₱) — by the Zoning Officer")}${f("or","OR no.")}${f("paid","Date paid","date")}${f("no","Clearance no.")}${f("date","Date issued","date")}${f("remarks","Remarks / conditions")}</div>
+    <label class="f" style="grid-column:1/-1"><span>Category (Revenue Code Sec. 41)</span><select data-zc="use"><option value="">—</option>${ZC_CATS.map(c=>`<option ${use===c?"selected":""}>${c}</option>`).join("")}</select></label>
+    ${f("cost","Project cost (₱)","","from the assessment")}${f("fee","Zoning/locational clearance fee (₱)")}
+    <label class="pill" style="align-self:end"><input type="checkbox" data-zcx="xapp" ${z.xapp?"checked":""}> Application fee ₱${ZC_OTHER.app[1]}</label><label class="pill" style="align-self:end"><input type="checkbox" data-zcx="xinsp" ${z.xinsp?"checked":""}> Inspection fee ₱${ZC_OTHER.insp[1]}</label>
+    ${f("certHa","Zoning certification — hectares (₱500/ha)","","only if requested")}<label class="f"><span>Total to pay (₱)</span><input disabled value="${num2(zcTotal(z))}"></label>${f("or","OR no.")}${f("paid","Date paid","date")}${f("no","Clearance no.")}${f("date","Date issued","date")}${f("remarks","Remarks / conditions")}</div>
    <div class="row" style="margin-top:6px;align-items:center">${sug?`<span class="sub" style="margin:0">Schedule: ${esc(sug.how)}</span><button class="btn small" id="zcUse">Use ₱${num2(sug.fee)}</button>`:`<span class="sub" style="margin:0">${use?"No fee schedule set for "+esc(use)+" (Data → Zoning).":"Choose the use to see the schedule."} The Zoning Officer may type the fee directly.</span>`}
     <button class="btn small" id="zcPrint">Print zoning fee assessment</button><button class="btn small danger" id="zcOff">Remove</button></div></div>`}
 function bindZc(a,rerender){const on=$("#zcOn");if(on)on.onclick=()=>{a.zc={on:true,by:ZC_OFFICER.name||""};rerender()};
   document.querySelectorAll("#appBody [data-zc]").forEach(i=>i.addEventListener(i.tagName==="SELECT"||i.type==="date"?"change":"input",()=>{a.zc=a.zc||{on:true};a.zc[i.dataset.zc]=i.value;if(i.tagName==="SELECT"||i.dataset.zc==="cost"&&i.type!=="date")clearTimeout(bindZc._t),bindZc._t=setTimeout(rerender,i.tagName==="SELECT"?0:700)}));
-  const u=$("#zcUse");if(u)u.onclick=()=>{const z=a.zc;const s=zcCompute(z.use||useOfApp(a),z.cost!=null&&z.cost!==""?z.cost:zcCostOf(a));if(s){z.fee=String(s.fee);z.feeHow=s.how;rerender()}};
+  document.querySelectorAll("#appBody [data-zcx]").forEach(c=>c.onchange=()=>{a.zc[c.dataset.zcx]=c.checked;rerender()});
+  const u=$("#zcUse");if(u)u.onclick=()=>{const z=a.zc;const s=zcCompute(ZC_CATS.includes(z.use)?z.use:zcCatOf(a),z.cost!=null&&z.cost!==""?z.cost:zcCostOf(a));if(s){z.fee=String(s.fee);z.feeHow=s.how;rerender()}};
   const off=$("#zcOff");if(off)off.onclick=()=>{if(confirm("Remove the zoning clearance record from this application?")){delete a.zc;rerender()}};
   const pr=$("#zcPrint");if(pr)pr.onclick=async()=>{await appSaveQuiet(a);audit("print-zc",a.no,a.name);printReport(zcSlipHtml(a))}}
 function zcSlipHtml(a){const z=a.zc||{},pin=appPinOf(a),zone=pin&&ZONING?zoneAt(pin.lat,pin.lng):"";
   return`<div class="rpage" style="font:11pt/1.5 Arial,Helvetica,sans-serif;padding:.7in .9in">${rptHead("ZONING / LOCATIONAL CLEARANCE FEE ASSESSMENT","Application "+esc(a.no))}
-   <table style="margin-top:10px"><tbody>${[["Applicant",a.name],["Project",a.project||""],["Location",[a.brgy,"Santo Tomas, La Union"].filter(Boolean).join(", ")],["Zone (CLUP)",zone||"—"],["Use",z.use||useOfApp(a)||""],["Project cost",z.cost?"₱ "+num2(+z.cost):""],
-     ["Zoning fee",z.fee?"₱ "+num2(+z.fee):"₱ ____________"],["Basis",z.feeHow||"per the zoning ordinance / schedule of fees"],["OR no. / date paid",[z.or,z.paid].filter(Boolean).join(" / ")],["Clearance no. / date issued",[z.no,z.date].filter(Boolean).join(" / ")],["Remarks / conditions",z.remarks||""]]
+   <table style="margin-top:10px"><tbody>${[["Applicant",a.name],["Project",a.project||""],["Location",[a.brgy,"Santo Tomas, La Union"].filter(Boolean).join(", ")],["Zone (CLUP)",zone||"—"],["Project cost",z.cost?"₱ "+num2(+z.cost):""],
+     ["Category",ZC_CATS.includes(z.use)?z.use:zcCatOf(a)],["Zoning/locational clearance fee",z.fee?"₱ "+num2(+z.fee):"₱ ____________"],["Basis",(z.feeHow||"")+" — MO No. 1-2021 (Revised Revenue Code), Sec. 41"],
+     ...(z.xapp?[["Application fee","₱ "+num2(ZC_OTHER.app[1])]]:[]),...(z.xinsp?[["Inspection fee","₱ "+num2(ZC_OTHER.insp[1])]]:[]),...(+z.certHa>0?[["Zoning certification",`${Math.ceil(+z.certHa)} ha × ₱500 = ₱ ${num2(Math.ceil(+z.certHa)*ZC_CERT_HA)}`]]:[]),["TOTAL",z.fee||z.xapp||z.xinsp||+z.certHa>0?"₱ "+num2(zcTotal(z)):""],["OR no. / date paid",[z.or,z.paid].filter(Boolean).join(" / ")],["Clearance no. / date issued",[z.no,z.date].filter(Boolean).join(" / ")],["Remarks / conditions",z.remarks||""]]
      .map(([l,v])=>`<tr><td class="l" style="width:34%"><b>${esc(l)}</b></td><td class="l">${esc(v||"")}</td></tr>`).join("")}</tbody></table>
    <div class="sig" style="margin-top:40px"><div>Assessed by:<b>${esc(z.by||ZC_OFFICER.name||" ")}</b>${esc(ZC_OFFICER.title||"Zoning Officer")}</div><div>Received by:<b> </b>Applicant / representative</div></div></div>`}
 function renderZcSched(){const el=document.getElementById("zcSchedBox");if(!el)return;
   el.innerHTML=`<details class="dcard" style="padding:8px 10px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Zoning clearance fee schedule (optional — for the Zoning Officer)</summary>
    <div class="row" style="margin-top:6px"><label class="f" style="flex:1 1 200px"><span>Zoning Officer</span><input id="zcoN" value="${esc(ZC_OFFICER.name)}"></label><label class="f" style="flex:1 1 200px"><span>Designation</span><input id="zcoT" value="${esc(ZC_OFFICER.title)}"></label></div>
-   <p class="muted" style="font-size:11.5px;margin:6px 0">Enter the rates of the zoning ordinance / revenue code. For each use: brackets "project cost up to ₱ → fee ₱", then for costs above the last bracket "fixed ₱ + % of the excess". Leave blank if the Zoning Officer computes manually.</p>
+   <p class="muted" style="font-size:11.5px;margin:6px 0"><b>Loaded from MO No. 1-2021 (Revised Revenue Code), Sec. 41.</b> Note: the Code prints the Apartment/Townhouse brackets as "₱500,000 and below / over ₱100,000 to ₱200,000 / over ₱200,000" and the residential top bracket as "₱720 in excess of ₱200,000"; these follow the HLURB schedule here (₱500k / ₱2M brackets; ₱720 + 1/10 of 1% of the excess). The Zoning Officer can change any rate below. For each use: brackets "project cost up to ₱ → fee ₱", then for costs above the last bracket "fixed ₱ + % of the excess". Leave blank if the Zoning Officer computes manually.</p>
    ${ZC_CATS.map(c=>{const S=ZC_SCHED[c]||{rows:[]};const rows=[...(S.rows||[]),["",""]];return`<div style="margin:6px 0"><b style="font-size:12.5px">${c}</b>
     <div class="tablewrap"><table class="dtable"><thead><tr><th>Project cost up to (₱)</th><th>Fee (₱)</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td><input data-zs="${c}" data-zi="${i}" data-zk="0" value="${esc(r[0])}" inputmode="decimal"></td><td><input data-zs="${c}" data-zi="${i}" data-zk="1" value="${esc(r[1])}" inputmode="decimal"></td></tr>`).join("")}</tbody></table></div>
     <div class="row"><label class="f" style="flex:1 1 140px"><span>Above the last bracket: fixed (₱)</span><input data-zsb="${c}" value="${esc(S.base??"")}" placeholder="= last fee"></label><label class="f" style="flex:1 1 140px"><span>+ % of the excess</span><input data-zsp="${c}" value="${esc(S.pct??"")}" inputmode="decimal"></label></div></div>`}).join("")}</details>`;
