@@ -5119,24 +5119,24 @@ function vbar(x,y0,w,h,fill){if(h<=0)return"";const r=Math.min(4,h,w/2);return`<
 function niceMax(v){if(v<=0)return 4;const p=Math.pow(10,Math.floor(Math.log10(v))),n=v/p;return(n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
 
 /* ---------- data aggregation for the dashboard ---------- */
-let DV={year:"",ptype:"BP",map:"issued",view:"info",psaMonth:""};
+let DV={year:"",ptype:"BP",map:"issued",view:"info",psaMonth:"",period:"",brgy:""};
 function dashData(){const yr=DV.year;
-  const P=permitsAll().filter(r=>(DV.ptype==="ALL"||r.type===DV.ptype)&&(!yr||(pd(r.date)||{}).y===+yr));
+  const P0=permitsAll().filter(r=>(DV.ptype==="ALL"||r.type===DV.ptype)&&dvIn(pd(r.date))),P=P0.filter(r=>!DV.brgy||r.brgy===DV.brgy);
   const by={};const blank=b=>({b,issued:0,area:0,value:0,fees:0,pPermit:0,pNone:0,pVerify:0,pAssessed:0,nov:0});
   BNAMES.forEach(b=>by[b]=blank(b));
-  P.forEach(r=>{const b=by[r.brgy]?r.brgy:"(Other / unknown)";by[b]=by[b]||blank(b);const o=by[b];o.issued++;o.area+=+r.area||0;o.value+=valueOf(r);o.fees+=+r.fees||0});
+  P0.forEach(r=>{const b=by[r.brgy]?r.brgy:"(Other / unknown)";by[b]=by[b]||blank(b);const o=by[b];o.issued++;o.area+=+r.area||0;o.value+=valueOf(r);o.fees+=+r.fees||0});
   pins.forEach(p=>{const b=by[p.brgy]?p.brgy:"(Other / unknown)";by[b]=by[b]||blank(b);const o=by[b];const s=statusOf(p);
     o[{permit:"pPermit",none:"pNone",verify:"pVerify",assessed:"pAssessed"}[s]]++;if(p.nov&&(p.comply||"pending")!=="complied")o.nov++});
   const rows=Object.values(by);
   const months=Array(12).fill(0).map(()=>({n:0,area:0,value:0}));
-  const years={};
-  permitsAll().filter(r=>DV.ptype==="ALL"||r.type===DV.ptype).forEach(r=>{const d=pd(r.date);if(!d)return;years[d.y]=years[d.y]||{n:0,area:0,value:0};years[d.y].n++;years[d.y].area+=+r.area||0;years[d.y].value+=valueOf(r);
+  const years={},prevM=Array(12).fill(0);
+  permitsAll().filter(r=>(DV.ptype==="ALL"||r.type===DV.ptype)&&(!DV.brgy||r.brgy===DV.brgy)).forEach(r=>{const d=pd(r.date);if(!d)return;years[d.y]=years[d.y]||{n:0,area:0,value:0};years[d.y].n++;years[d.y].area+=+r.area||0;years[d.y].value+=valueOf(r);if(yr&&d.y===+yr-1)prevM[d.m-1]++;
     if(!yr||d.y===+yr){if(yr){months[d.m-1].n++;months[d.m-1].area+=+r.area||0;months[d.m-1].value+=valueOf(r)}}});
   const cats={};P.forEach(r=>{const x=psaRow(r);const g=PSA_SUB[x.cat].g;cats[g]=cats[g]||{n:0,area:0,value:0};cats[g].n++;cats[g].area+=x.area;cats[g].value+=x.value});
   const T={issued:P.length,area:P.reduce((a,r)=>a+(+r.area||0),0),value:P.reduce((a,r)=>a+valueOf(r),0),fees:P.reduce((a,r)=>a+(+r.fees||0),0)};
-  const pc={permit:0,none:0,verify:0,assessed:0};pins.forEach(p=>pc[statusOf(p)]++);
-  const openNov=pins.filter(p=>p.nov&&["pending","partial"].includes(p.comply||"pending")).length;
-  return{P,rows,months,years,cats,T,pc,openNov}}
+  const pc={permit:0,none:0,verify:0,assessed:0};pins.forEach(p=>{if(!DV.brgy||p.brgy===DV.brgy)pc[statusOf(p)]++});
+  const openNov=pins.filter(p=>p.nov&&(!DV.brgy||p.brgy===DV.brgy)&&["pending","partial"].includes(p.comply||"pending")).length;
+  return{P,rows,months,years,cats,T,pc,openNov,prevM}}
 
 /* ---------- charts ---------- */
 function chartButterfly(rows,Wp){const R=rows.filter(r=>r.issued||r.pNone||r.pVerify||r.pPermit||BNAMES.includes(r.b)).sort((a,b)=>(b.issued+b.pNone)-(a.issued+a.pNone)||a.b.localeCompare(b.b));
@@ -5146,8 +5146,8 @@ function chartButterfly(rows,Wp){const R=rows.filter(r=>r.issued||r.pNone||r.pVe
   const ticks=[0,mx/2,mx];ticks.forEach(t=>{const xl=mid-lab/2-sx(t),xr=mid+lab/2+sx(t);g+=`<line x1="${xl}" x2="${xl}" y1="${top-4}" y2="${H-6}" stroke="var(--grid)"/><line x1="${xr}" x2="${xr}" y1="${top-4}" y2="${H-6}" stroke="var(--grid)"/>`});
   R.forEach((r,i)=>{const y=top+i*rowH,bh=13,by=y+(rowH-bh)/2;
     const tip=tipHtml(r.b,[["Permits issued",fmtN(r.issued),"var(--s-permit)"],["No-permit structures",fmtN(r.pNone),"var(--s-none)"],["Under verification",fmtN(r.pVerify)],["Assessed only (pins)",fmtN(r.pAssessed)],["Pinned with permit",fmtN(r.pPermit)],["Open NOVs",fmtN(r.nov)],["Floor area",fmt1(r.area)+" m²"],["Project value",fmtM(r.value)]]);
-    g+=`<rect class="hit" x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent" ${tipAttr(tip)}/>`;
-    g+=`<text x="${mid}" y="${y+rowH/2+4}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--ink)" pointer-events="none">${esc(r.b)}</text>`;
+    g+=`<rect class="hit" data-b="${esc(r.b)}" style="cursor:pointer" x="0" y="${y}" width="${W}" height="${rowH}" fill="${DV.brgy===r.b?"var(--grid)":"transparent"}" ${tipAttr(tip)}/>`;
+    g+=`<text x="${mid}" y="${y+rowH/2+4}" text-anchor="middle" font-size="11.5" font-weight="${DV.brgy===r.b?800:600}" fill="var(--ink)" pointer-events="none">${esc(r.b)}</text>`;
     g+=`<g pointer-events="none">`+hbar(mid-lab/2,by,sx(r.pNone),bh,-1,"var(--s-none)")+hbar(mid+lab/2,by,sx(r.issued),bh,1,"var(--s-permit)");
     if(r.pNone)g+=`<text x="${mid-lab/2-sx(r.pNone)-5}" y="${by+bh-2}" text-anchor="end" font-size="11" fill="var(--tx2)">${r.pNone}</text>`;
     if(r.issued)g+=`<text x="${mid+lab/2+sx(r.issued)+5}" y="${by+bh-2}" font-size="11" fill="var(--tx2)">${r.issued}</text>`;
@@ -5166,7 +5166,7 @@ function chartMap(rows,metric){const B=BOUNDS.brgy;const val=b=>{const r=rows.fi
   let g="";Object.entries(B).forEach(([b,o])=>{const v=val(b),r=rows.find(x=>x.b===b)||{};
     const d=o.rings.map(rg=>"M"+rg.map(([la,lo])=>X(lo)+","+Y(la)).join("L")+"Z").join("");
     const tip=tipHtml(b,[[metric==="none"?"No-permit structures":"Permits issued",fmtN(v)],["Permits issued",fmtN(r.issued||0)],["No-permit structures",fmtN(r.pNone||0)],["Area",(o.ha||0).toLocaleString("en-US")+" ha"]]);
-    g+=`<path class="br" d="${d}" fill="${step(binOf(v))}" stroke="var(--panel)" stroke-width="1.2" fill-rule="evenodd" ${tipAttr(tip)}/>`});
+    g+=`<path class="br" data-b="${esc(b)}" style="cursor:pointer" d="${d}" fill="${step(binOf(v))}" stroke="${DV.brgy===b?"var(--ink)":"var(--panel)"}" stroke-width="${DV.brgy===b?3:1.2}" fill-rule="evenodd" ${tipAttr(tip)}/>`});
   const top=Object.keys(B).map(b=>[b,val(b)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,3);
   top.forEach(([b])=>{const o=B[b];let sx=0,sy=0,n=0;o.rings[0].forEach(([la,lo])=>{sx+=+X(lo);sy+=+Y(la);n++});
     g+=`<text x="${(sx/n).toFixed(0)}" y="${(sy/n).toFixed(0)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--ink)" paint-order="stroke" stroke="var(--panel)" stroke-width="3" pointer-events="none">${esc(b)}</text>`});
@@ -5180,12 +5180,15 @@ function chartMonths(D){const yr=DV.year;let data,labels;
   let g="";[0,mx/2,mx].forEach(v=>{const y=H-b-sy(v);g+=`<line x1="${l}" x2="${W}" y1="${y}" y2="${y}" stroke="${v?"var(--grid)":"var(--axis)"}"/><text x="${l-6}" y="${y+4}" text-anchor="end" font-size="10.5" fill="var(--tx3)">${fmtN(v)}</text>`});
   const peak=Math.max(...data.map(d=>d.n));
   data.forEach((d,i)=>{const x=l+i*cw,bw=Math.min(34,cw-6),bx=x+(cw-bw)/2;
-    const tip=tipHtml(yr?MONTHS_L[i]+" "+yr:labels[i],[["Permits issued",fmtN(d.n),"var(--s-permit)"],["Floor area",fmt1(d.area)+" m²"],["Project value",fmtM(d.value)]]);
+    const tip=tipHtml(yr?MONTHS_L[i]+" "+yr:labels[i],[["Permits issued",fmtN(d.n),"var(--s-permit)"],...(yr&&D.prevM?[[MONTHS_L[i]+" "+(+yr-1),fmtN(D.prevM[i])]]:[]),["Floor area",fmt1(d.area)+" m²"],["Project value",fmtM(d.value)]]);
     g+=`<rect class="hit" x="${x}" y="${t-6}" width="${cw}" height="${H-b-t+6}" fill="transparent" ${tipAttr(tip)}/>`;
     g+=`<g pointer-events="none">${vbar(bx,H-b,bw,sy(d.n),"var(--s-permit)")}`;
     if(d.n&&(d.n===peak||data.length<=12))g+=`<text x="${bx+bw/2}" y="${H-b-sy(d.n)-5}" text-anchor="middle" font-size="10.5" font-weight="${d.n===peak?700:500}" fill="var(--tx2)">${d.n}</text>`;
     g+=`<text x="${x+cw/2}" y="${H-7}" text-anchor="middle" font-size="10.5" fill="var(--tx3)">${esc(labels[i])}</text></g>`});
-  return`<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Permits issued per ${yr?"month":"year"}">${g}</svg>`}
+  let leg="";if(yr&&D.prevM&&D.prevM.some(v=>v)){const pts=D.prevM.map((v,i)=>[l+i*cw+cw/2,H-b-sy(Math.min(v,mx))]);
+    g+=`<polyline points="${pts.map(p=>p.join(",")).join(" ")}" fill="none" stroke="var(--tx3)" stroke-width="2" stroke-dasharray="4 3" pointer-events="none"/>`+pts.map(([x,y],i)=>`<circle cx="${x}" cy="${y}" r="4" fill="var(--panel)" stroke="var(--tx3)" stroke-width="2" pointer-events="none"/>`).join("");
+    leg=`<div class="lgd"><span><i style="background:var(--s-permit)"></i>${esc(yr)}</span><span><i style="background:transparent;border:2px dashed var(--tx3)"></i>${+yr-1} (same month)</span></div>`;}
+  return`${leg}<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Permits issued per ${yr?"month":"year"}">${g}</svg>`}
 
 function chartCats(D){const L=PSA_CATS.map(([g,gl])=>({g,gl,...(D.cats[g]||{n:0,area:0,value:0})})).filter(x=>x.n||["RES","NRES"].includes(x.g));
   const W=560,rowH=30,lab=150,H=L.length*rowH+4,mx=niceMax(Math.max(1,...L.map(x=>x.n))),tot=L.reduce((a,x)=>a+x.n,0)||1,sx=v=>v/mx*(W-lab-60);let g="";
@@ -5201,13 +5204,13 @@ const ICO={doc:'<path d="M6 3h9l4 4v14H6z M15 3v4h4 M9 12h7 M9 16h7"/>',area:'<p
   warn:'<path d="M12 3l9 17H3z M12 10v4 M12 17v.5"/>',search:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',check:'<path d="M5 12l4 4 10-10"/>',flag:'<path d="M5 21V4 M5 4h11l-2 4 2 4H5"/>'};
 function kpi(label,val,sub,icon,color){return`<div class="kpi" style="--kc:${color}"><span class="kl"><svg viewBox="0 0 24 24" aria-hidden="true">${ICO[icon]}</svg>${esc(label)}</span><span class="kv">${val}</span><span class="ks">${sub}</span></div>`}
 
-function dashInfoHtml(forPrint){const D=dashData(),T=D.T,yrL=DV.year||"all years",pinsN=pins.length;
+function dashInfoHtml(forPrint){const D=dashData(),T=D.T,yrL=dvPeriodLabel()+(DV.brgy?" · "+DV.brgy:""),pinsN=pins.filter(p=>!DV.brgy||p.brgy===DV.brgy).length;const PV=DV.year?dvTotals(+DV.year-1):null;
   const comp=pinsN?Math.round(100*D.pc.permit/pinsN):0;const ptl=DV.ptype==="ALL"?"permits (all types)":"building permits";
   const k=`<div class="kpis">
-    ${kpi(DV.ptype==="ALL"?"Permits issued":"Building permits issued",fmtN(T.issued),esc(yrL),"doc","var(--s-permit)")}
-    ${kpi("Total floor area",fmt1(T.area)+" <small style='font-size:15px'>m²</small>",esc("from "+ptl),"area","var(--brand)")}
-    ${kpi("Total project value",fmtM(T.value),esc("estimated cost, "+yrL),"peso","var(--gold)")}
-    ${kpi("Permit fees assessed",fmtM(T.fees),esc(yrL),"peso","var(--brand)")}
+    ${kpi(DV.ptype==="ALL"?"Permits issued":"Building permits issued",fmtN(T.issued),esc(yrL)+(PV?yoy(T.issued,PV.n):""),"doc","var(--s-permit)")}
+    ${kpi("Total floor area",fmt1(T.area)+" <small style='font-size:15px'>m²</small>",esc("from "+ptl)+(PV?yoy(T.area,PV.area):""),"area","var(--brand)")}
+    ${kpi("Total project value",fmtM(T.value),esc("estimated cost")+(PV?yoy(T.value,PV.value):""),"peso","var(--gold)")}
+    ${kpi("Permit fees assessed",fmtM(T.fees),esc(yrL)+(PV?yoy(T.fees,PV.fees):""),"peso","var(--brand)")}
     ${kpi("No-permit structures",fmtN(D.pc.none),"field-verified pins (all dates)","warn","var(--s-none)")}
     ${kpi("Under verification",fmtN(D.pc.verify),"pins awaiting checking","search","var(--warn)")}
     ${kpi("Pinned with permit",comp+"%",`${D.pc.permit} of ${pinsN} pinned structures`,"check","var(--ok)")}
@@ -5225,6 +5228,7 @@ function dashInfoHtml(forPrint){const D=dashData(),T=D.T,yrL=DV.year||"all years
      <div class="dcard"><h3>Permits issued ${DV.year?"per month, "+esc(DV.year):"per year"}</h3><p class="sub">${esc(ptl)} by date issued</p>${chartMonths(D)}</div>
      <div class="dcard"><h3>Type of construction</h3><p class="sub">PSA classification of ${esc(ptl)}, ${esc(yrL)}</p>${chartCats(D)}</div>
     </div></div>
+   ${forPrint?"":dashMoreHtml(false)}
    ${forPrint?"":`<div class="dcard">${tbl}</div>`}</div>`}
 
 /* ---------- PSA monthly report ---------- */
@@ -5273,10 +5277,13 @@ function renderDash(){document.querySelectorAll("#dTabs button").forEach(b=>b.se
   if(DV.view==="rep"){renderReports(C);return}
   const ys=yearsAvail();
   C.innerHTML=`<div class="dash-filters"><label>Year<select id="dYear"><option value="">All years</option>${ys.map(y=>`<option ${String(y)===DV.year?"selected":""}>${y}</option>`).join("")}</select></label>
+    <label>Period<select id="dPer" ${DV.year?"":"disabled"}><option value="">Whole year</option>${[1,2,3,4].map(q=>`<option value="Q${q}" ${DV.period==="Q"+q?"selected":""}>Q${q}</option>`).join("")}${MONTHS_L.map((m,i)=>`<option value="M${i+1}" ${DV.period==="M"+(i+1)?"selected":""}>${m}</option>`).join("")}</select></label>
+    <label>Barangay<select id="dBrgy"><option value="">All barangays</option>${BNAMES.map(b=>`<option ${DV.brgy===b?"selected":""}>${b}</option>`).join("")}</select></label>
     <label>Permits<select id="dType"><option value="BP" ${DV.ptype==="BP"?"selected":""}>Building permits</option><option value="ALL" ${DV.ptype==="ALL"?"selected":""}>All permit types</option></select></label>
-    <span class="muted" style="font-size:12px;margin-left:auto">Data: BPFADRU register (${esc(regDate)}) + permits posted in OBO-BPMS + field pins on this device</span>
+    <span class="muted" style="font-size:12px;margin-left:auto">Data: OBO-BPMS records${CLOUD.on&&SYNC.last?`, synced ${esc(new Date(SYNC.last).toLocaleString())}`:", "+esc(new Date().toLocaleString())} (includes the LGU-BP register up to Oct 13, 2026). Click a barangay to filter.</span>
     <button class="btn" id="dPrint">Print infographic</button></div>${dashInfoHtml(false)}`;
-  $("#dYear").onchange=e=>{DV.year=e.target.value;renderDash()};$("#dType").onchange=e=>{DV.ptype=e.target.value;renderDash()};
+  $("#dYear").onchange=e=>{DV.year=e.target.value;if(!DV.year)DV.period="";renderDash()};$("#dPer").onchange=e=>{DV.period=e.target.value;renderDash()};$("#dBrgy").onchange=e=>{DV.brgy=e.target.value;renderDash()};
+  C.querySelectorAll("[data-b]").forEach(el=>el.addEventListener("click",()=>{const b=el.dataset.b;DV.brgy=DV.brgy===b||!BNAMES.includes(b)?"":b;renderDash()}));$("#dType").onchange=e=>{DV.ptype=e.target.value;renderDash()};
   C.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>{DV.map=b.dataset.map;renderDash()});
   $("#dPrint").onclick=()=>{$("#printArea").innerHTML=`<div class="rpage land dashp" style="padding:.35in .4in"><div class="rh" style="margin-bottom:6px"><img src="${SEAL}" alt="" style="width:44px;height:44px"><div><b>MUNICIPALITY OF SANTO TOMAS, LA UNION</b><div>Office of the Building Official — Building Permit Dashboard, ${esc(DV.year||"all years")}</div></div><img src="${BPLOGO}" alt="" style="width:44px;height:44px"></div><div id="dpFit">${dashInfoHtml(true)}</div></div>`;const pa=$("#printArea");pa.style.cssText="display:block;position:absolute;left:-99999px;top:0";const f=$("#dpFit"),pg=f.parentElement,avail=pg.clientHeight-f.offsetTop-30;const z=Math.min(1,avail/f.scrollHeight);f.style.transform=`scale(${z})`;f.style.transformOrigin="top center";pa.style.cssText="";setPageSize("size:11in 8.5in;margin:0");doPrint()}}
 function bindPsa(){const ym=DV.psaMonth;
@@ -6915,6 +6922,68 @@ function renderZcSched(){const el=document.getElementById("zcSchedBox");if(!el)r
   el.querySelectorAll("[data-zsb]").forEach(i=>i.onchange=async()=>{const S=ZC_SCHED[i.dataset.zsb]=ZC_SCHED[i.dataset.zsb]||{rows:[]};S.base=i.value.replace(/[,₱\s]/g,"");await save()});
   el.querySelectorAll("[data-zsp]").forEach(i=>i.onchange=async()=>{const S=ZC_SCHED[i.dataset.zsp]=ZC_SCHED[i.dataset.zsp]||{rows:[]};S.pct=i.value.replace(/[%\s]/g,"");await save()})}
 
+/* ================= Dashboard upgrade: period + barangay filters, year-on-year, office performance, collections, groups, top projects, geotagging, violations ================= */
+const MON_L3=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function dvMonthsOf(p){p=p||"";if(/^Q[1-4]$/.test(p)){const q=+p[1];return[q*3-2,q*3-1,q*3]}if(/^M\d+$/.test(p))return[+p.slice(1)];return null}
+function dvIn(d,year){if(!d)return false;const y=year!=null?year:(DV.year?+DV.year:null);if(y&&d.y!==y)return false;const M=dvMonthsOf(DV.period);return!M||!y||M.includes(d.m)}
+function dvRange(year){const y=year!=null?year:(DV.year?+DV.year:null);if(!y)return["2000-01-01","2999-12-31"];const M=dvMonthsOf(DV.period)||[1,12];const a=Math.min(...M),b=Math.max(...M);
+  return[`${y}-${pad2(a)}-01`,ymdLocal(new Date(y,b,0))]}
+function dvPeriodLabel(year){const y=year!=null?year:DV.year;if(!y)return"all years";const p=DV.period||"";return(/^Q/.test(p)?p+" ":/^M/.test(p)?MONTHS_L[+p.slice(1)-1]+" ":"")+y}
+function dvTotals(year){const P=permitsAll().filter(r=>(DV.ptype==="ALL"||r.type===DV.ptype)&&dvIn(pd(r.date),year)&&(!DV.brgy||r.brgy===DV.brgy));
+  return{n:P.length,area:P.reduce((a,r)=>a+(+r.area||0),0),value:P.reduce((a,r)=>a+valueOf(r),0),fees:P.reduce((a,r)=>a+(+r.fees||0),0),P}}
+function yoy(cur,prev){if(!DV.year)return"";if(!prev)return cur?` · <b style="color:var(--tx2)">new vs ${+DV.year-1}</b>`:"";const p=Math.round(100*(cur-prev)/prev);
+  return` · <b style="color:var(--tx2)">${p>0?"▲":p<0?"▼":"="} ${Math.abs(p)}%</b> vs ${+DV.year-1}`}
+function dvApps(){const[a,b]=dvRange();const inB=x=>!DV.brgy||x.brgy===DV.brgy;const A=APPS.filter(inB);
+  const rec=A.filter(x=>x.received&&x.received>=a&&x.received<=b),rel=A.filter(x=>x.released&&x.released>=a&&x.released<=b).map(x=>({x,i:appInfo(x)}));
+  const open=A.map(x=>({x,i:appInfo(x)})).filter(o=>!o.i.done);return{rec,rel,open,over:open.filter(o=>o.i.over),avg:rel.length?rel.reduce((s,o)=>s+o.i.wd,0)/rel.length:null,within:rel.length?Math.round(100*rel.filter(o=>!o.i.late).length/rel.length):null}}
+function dvCollections(){const[a,b]=dvRange();let L=[];try{L=collRows(a,b)}catch(e){}return L}
+function hbarsChart(L,valFmt,labW){if(!L.length)return`<div class="empty">None in this period.</div>`;const W=560,rowH=28,lab=labW||170,H=L.length*rowH+4,mx=niceMax(Math.max(1,...L.map(x=>x.v))),sx=v=>v/mx*(W-lab-70);let g="";
+  L.forEach((x,i)=>{const y=i*rowH,bh=14,by=y+(rowH-bh)/2;g+=`<rect class="hit" x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent" ${tipAttr(tipHtml(x.l,x.tip||[["Value",valFmt(x.v)]]))}/><g pointer-events="none">`;
+    g+=`<text x="${lab-10}" y="${by+bh-2}" text-anchor="end" font-size="12" font-weight="600" fill="var(--ink)">${esc(x.l)}</text>`;
+    g+=`<rect x="${lab}" y="${by}" width="${W-lab-70}" height="${bh}" rx="4" fill="var(--grid)" opacity=".55"/>`+hbar(lab,by,sx(x.v),bh,1,x.c||"var(--s-permit)");
+    g+=`<text x="${lab+sx(x.v)+6}" y="${by+bh-2}" font-size="11.5" font-weight="700" fill="var(--tx2)">${esc(valFmt(x.v))}${x.sub?` <tspan font-weight="500" fill="var(--tx3)">· ${esc(x.sub)}</tspan>`:""}</text></g>`});
+  return`<svg class="ch" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`}
+function chartPipeline(open){const L=APP_STEPS.map(([k,l])=>({l,v:open.filter(o=>o.i.step===l).length}));const none=open.filter(o=>o.i.step==="—").length;if(none)L.unshift({l:"(no step yet)",v:none});
+  return hbarsChart(L.map(x=>({...x,tip:[["Applications at this step",fmtN(x.v)]]})),v=>fmtN(v),150)}
+function chartCollections(year){if(!year)return`<div class="empty">Choose a year to see collections per month.</div>`;let L=[];try{L=collRows(`${year}-01-01`,`${year}-12-31`)}catch(e){}
+  const M=Array.from({length:12},()=>({t:0,by:{}}));L.forEach(r=>{const m=+String(r.date).slice(5,7);if(!m)return;const o=M[m-1];o.t+=+r.amt||0;o.by[r.nature]=(o.by[r.nature]||0)+(+r.amt||0)});
+  if(!M.some(o=>o.t))return`<div class="empty">No collections with OR and date paid in ${year}.</div>`;
+  const W=560,H=210,l=46,b=24,t=16,cw=(W-l-6)/12,mx=niceMax(Math.max(1,...M.map(o=>o.t))),sy=v=>v/mx*(H-b-t);let g="";
+  [0,mx/2,mx].forEach(v=>{const y=H-b-sy(v);g+=`<line x1="${l}" x2="${W}" y1="${y}" y2="${y}" stroke="${v?"var(--grid)":"var(--axis)"}"/><text x="${l-6}" y="${y+4}" text-anchor="end" font-size="10.5" fill="var(--tx3)">${fmtM(v)}</text>`});
+  const peak=Math.max(...M.map(o=>o.t));
+  M.forEach((o,i)=>{const x=l+i*cw,bw=Math.min(30,cw-6),bx=x+(cw-bw)/2;const tip=tipHtml(MONTHS_L[i]+" "+year,[["Total collected","₱"+num2(o.t),"var(--brand)"],...Object.entries(o.by).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,"₱"+num2(v)])]);
+    g+=`<rect class="hit" x="${x}" y="${t-6}" width="${cw}" height="${H-b-t+6}" fill="transparent" ${tipAttr(tip)}/><g pointer-events="none">${vbar(bx,H-b,bw,sy(o.t),"var(--brand)")}`;
+    if(o.t===peak&&o.t)g+=`<text x="${bx+bw/2}" y="${H-b-sy(o.t)-5}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--tx2)">${fmtM(o.t)}</text>`;
+    g+=`<text x="${x+cw/2}" y="${H-7}" text-anchor="middle" font-size="10.5" fill="var(--tx3)">${MON_L3[i]}</text></g>`});
+  const nat={};L.forEach(r=>nat[r.nature]=(nat[r.nature]||0)+(+r.amt||0));
+  return`<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Collections per month">${g}</svg>
+   <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;font-weight:600">By kind of fee, ${year}</summary><div class="tablewrap"><table class="dtable"><thead><tr><th style="text-align:left">Fee</th><th>Amount (₱)</th></tr></thead><tbody>${Object.entries(nat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td style="text-align:left">${esc(k)}</td><td>${num2(v)}</td></tr>`).join("")}<tr class="tot"><td>Total</td><td>${num2(Object.values(nat).reduce((a,b)=>a+b,0))}</td></tr></tbody></table></div></details>`}
+function chartGroups(P){const G={};P.forEach(r=>{const g=String(r.div||r.occ||"").toUpperCase().match(/^[A-J]/);const k=g?g[0]:"?";G[k]=G[k]||{n:0,area:0,value:0};G[k].n++;G[k].area+=+r.area||0;G[k].value+=valueOf(r)});
+  const L=Object.entries(G).sort((a,b)=>b[1].n-a[1].n).map(([k,o])=>({l:k==="?"?"(no group)":(NBC_GROUPS[k]||"Group "+k).replace(/^Group [A-J] – /,`${k} – `),v:o.n,sub:fmtM(o.value),tip:[["Permits",fmtN(o.n)],["Floor area",fmt1(o.area)+" m²"],["Value",fmtM(o.value)]]}));
+  return hbarsChart(L,v=>fmtN(v),230)}
+function topProjects(P){const L=P.slice().sort((a,b)=>valueOf(b)-valueOf(a)).slice(0,5);if(!L.length)return`<div class="empty">None in this period.</div>`;
+  return`<div class="tablewrap"><table class="dtable"><thead><tr><th style="text-align:left">Permit no.</th><th style="text-align:left">Owner / project</th><th style="text-align:left">Barangay</th><th>Floor area</th><th>Value</th></tr></thead><tbody>${L.map(r=>`<tr><td class="mono" style="text-align:left">${esc(r.pno||r.no)}</td><td style="text-align:left;white-space:normal;min-width:200px"><b style="font-weight:600">${esc(r.name)}</b><div class="muted" style="font-size:11.5px" title="${esc(r.project||"")}">${esc(String(r.project||"").length>70?String(r.project).slice(0,68)+"…":r.project||"")}</div></td><td style="text-align:left">${esc(r.brgy||"")}</td><td>${r.area?fmt1(r.area)+" m²":""}</td><td><b>${fmtM(valueOf(r))}</b></td></tr>`).join("")}</tbody></table></div>`}
+function geotagProgress(P){const by={};P.forEach(r=>{const b=r.brgy||"(Other / unknown)";by[b]=by[b]||{n:0,pin:0};by[b].n++;if(pins.some(p=>p.permitNo&&(p.permitNo===r.no||p.permitNo===r.pno)))by[b].pin++});
+  const L=Object.entries(by).map(([b,o])=>({l:b,v:Math.round(100*o.pin/o.n),sub:`${o.pin} of ${o.n}`,c:"var(--ok)",tip:[["Permits issued",fmtN(o.n)],["Pinned on the map",fmtN(o.pin)],["Geotagged",Math.round(100*o.pin/o.n)+"%"]]})).sort((a,b)=>a.v-b.v||a.l.localeCompare(b.l));
+  return L.length?hbarsChart(L,v=>v+"%",140):`<div class="empty">No permits in this period.</div>`}
+function violationStages(){const P=pins.filter(p=>p.nov&&(!DV.brgy||p.brgy===DV.brgy));const st=p=>p.comply==="complied"?"Complied":p.refDate?"Endorsed to the Mayor":p.wsoDate?"Work stoppage order":p.nov2Date?"Final notice":"NOV issued";
+  const order=["NOV issued","Final notice","Work stoppage order","Endorsed to the Mayor","Complied"];const L=order.map(l=>({l,v:P.filter(p=>st(p)===l).length,c:l==="Complied"?"var(--ok)":"var(--s-none)"}));
+  return P.length?hbarsChart(L.map(x=>({...x,tip:[["Structures",fmtN(x.v)]]})),v=>fmtN(v),170):`<div class="empty">No notices of violation${DV.brgy?" in "+esc(DV.brgy):""}.</div>`}
+function dashMoreHtml(forPrint){const y=DV.year?+DV.year:null,T=dvTotals(),A=dvApps(),C=dvCollections(),coll=C.reduce((s,r)=>s+(+r.amt||0),0);
+  const yrL=dvPeriodLabel();const k=`<div class="kpis">
+    ${kpi("Applications received",fmtN(A.rec.length),esc(yrL),"doc","var(--brand)")}
+    ${kpi("In process now",fmtN(A.open.length),`${A.over.length} over the time limit`,"search",A.over.length?"var(--bad)":"var(--warn)")}
+    ${kpi("Average processing time",A.avg==null?"—":A.avg.toFixed(1)+" <small style='font-size:15px'>days</small>",`working days, ${A.rel.length} released · ${esc(yrL)}`,"check","var(--ok)")}
+    ${kpi("Within RA 11032 time limit",A.within==null?"—":A.within+"%",`of applications released · ${esc(yrL)}`,"check",A.within!=null&&A.within<90?"var(--warn)":"var(--ok)")}
+    ${kpi("Fees collected",fmtM(coll),`with OR, all fees · ${esc(yrL)}`,"peso","var(--gold)")}</div>`;
+  return`${k}<div class="dgrid">
+    <div class="dcard"><h3>Applications in process, by step</h3><p class="sub">Where applications are waiting now${DV.brgy?" — "+esc(DV.brgy):""}. Over the limit: ${A.over.length}.</p>${chartPipeline(A.open)}</div>
+    <div class="dcard"><h3>Collections per month${y?", "+y:""}</h3><p class="sub">All OBO-related fees with OR and date paid (permits, occupancy, zoning, net-metering). Hover a month for the breakdown.</p>${chartCollections(y)}</div>
+    <div class="dcard"><h3>Permits by occupancy group</h3><p class="sub">${esc(DV.ptype==="ALL"?"All permits":"Building permits")}, ${esc(yrL)} · number and value</p>${chartGroups(T.P)}</div>
+    <div class="dcard"><h3>Biggest projects</h3><p class="sub">Top 5 by estimated value, ${esc(yrL)}</p>${topProjects(T.P)}</div>
+    <div class="dcard"><h3>Geotagging progress per barangay</h3><p class="sub">Share of permits issued (${esc(yrL)}) that are pinned on the map — lowest first: where the inspector should go next.</p>${geotagProgress(T.P)}</div>
+    <div class="dcard"><h3>Violations by stage</h3><p class="sub">Structures with a notice of violation (all dates)${DV.brgy?" — "+esc(DV.brgy):""}.</p>${violationStages()}</div></div>`}
+
 /* ---- 7. Alerts: what needs action today ---- */
 let ALERTS=[];
 const daysTo=iso=>Math.round((new Date(iso+"T00:00:00")-new Date(isoToday()+"T00:00:00"))/864e5);
@@ -7121,6 +7190,7 @@ const WHATS_NEW=[
   "Reports: Monthly report to the Mayor; Certificate of Annual Inspection (CAI) with numbering",
   "Year-end close: summary, permanent backup and numbering check",
   "New name: OBO-BPMS Santo Tomas (Building Permit Management System)",
+  "Dashboard: period and barangay filters (click a barangay), year-on-year change, office performance, applications by step, collections per month, occupancy groups, biggest projects, geotagging progress, violations by stage",
   "Optional zoning / locational clearance fee in the application (entered or computed by the Zoning Officer from an editable schedule; shown in daily collections)",
   "📷 Geotagged photos from the phone camera: GPS, date, time, owner and NOV no. stamped on the photo; attached as annex to the NOV / WSO letters"]],
  ["1.2 — 2026-10-14",["Register → Correct / cancel: fix a name, OR or project, cancel a permit posted in error, or revoke a permit — with reason and history; the number is never re-used",
