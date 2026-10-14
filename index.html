@@ -6984,6 +6984,65 @@ function dashMoreHtml(forPrint){const y=DV.year?+DV.year:null,T=dvTotals(),A=dvA
     <div class="dcard"><h3>Geotagging progress per barangay</h3><p class="sub">Share of permits issued (${esc(yrL)}) that are pinned on the map — lowest first: where the inspector should go next.</p>${geotagProgress(T.P)}</div>
     <div class="dcard"><h3>Violations by stage</h3><p class="sub">Structures with a notice of violation (all dates)${DV.brgy?" — "+esc(DV.brgy):""}.</p>${violationStages()}</div></div>`}
 
+/* ================= Plan evaluation per discipline (checklist of drawings and documents) ================= */
+const EVAL_DISC=[
+ {k:"arch",l:"Architectural",prof:"Architect",items:["Vicinity map / location plan (north arrow, scale)","Site development plan: lot lines, setbacks, easements, open spaces, parking","Perspective","Floor plans of all levels (dimensions, room names, scale)","Elevations (at least four)","Sections (at least two)","Reflected ceiling plan","Architectural details (stairs, toilets, walls, railings)","Schedule of doors and windows; schedule of finishes","Light and ventilation: window openings not less than 10% of the floor area (NBC Sec. 808)","Setbacks, firewalls, open spaces and height per NBC Rule VII / VIII","Exits, stairs and travel distance (fire safety, for BFP evaluation)","Accessibility features — BP 344 (where required)","Title block complete; signed and sealed by the Architect with PRC and PTR"]},
+ {k:"civil",l:"Civil / Structural",prof:"Civil / Structural Engineer",items:["Site / grading and drainage plan (where applicable)","Foundation plan and footing details","Floor framing plans","Roof framing plan and truss details","Schedule and details of footings, columns, beams and slabs","Details of stairs, walls, lintels and connections","General notes and specifications (f'c, fy, allowable soil bearing capacity)","Structural design analysis / computations (two storeys and above, or as required)","Soil boring / geotechnical report (three storeys and above, or as required)","Design loads, seismic and wind analysis per the NSCP","Title block complete; signed and sealed by the Civil / Structural Engineer with PRC and PTR"]},
+ {k:"elec",l:"Electrical",prof:"Professional Electrical Engineer",items:["Location / site plan with service entrance and meter location","Legend and symbols; general notes and specifications","Lighting layout","Power layout (convenience and special-purpose outlets)","Schedule of loads / panelboard schedule","Single line diagram / riser diagram","Electrical design analysis (load computation, wire and breaker sizing, voltage drop)","Grounding system details","Compliance with the Philippine Electrical Code","Title block complete; signed and sealed by the PEE (or REE within the allowed limits) with PRC and PTR"]},
+ {k:"san",l:"Sanitary / Plumbing",prof:"Sanitary Engineer / Master Plumber",items:["Location plan and vicinity map","Water supply layout and isometric diagram","Sanitary layout: soil, waste and vent lines with isometric diagram","Storm drainage layout and outfall","Septic tank / sewage treatment details and capacity computation","Schedule of fixtures and pipe sizes","Water source and water meter location","Compliance with the Revised National Plumbing Code and the Sanitation Code","Title block complete; signed and sealed by the Sanitary Engineer / Master Plumber with PRC and PTR"]},
+ {k:"mech",l:"Mechanical",prof:"Professional Mechanical Engineer",items:["Layout of mechanical equipment (air-conditioning, ventilation, exhaust)","Fire protection / sprinkler system layout (where required)","Elevator, escalator or dumbwaiter details (if any)","Fuel, LPG, boiler or pressure vessel details (if any)","Equipment schedule and design computations","Compliance with the Philippine Mechanical Code","Title block complete; signed and sealed by the PME with PRC and PTR"]},
+ {k:"elex",l:"Electronics",prof:"Electronics Engineer",items:["Fire detection and alarm system layout","Telephone / data / structured cabling layout","CCTV, security, sound and public address systems (if any)","Riser diagram and equipment schedule","Title block complete; signed and sealed by the PECE / ECE with PRC and PTR"]}];
+let EVAL_LISTS={};(async()=>{try{EVAL_LISTS=(await DB.get("evalLists"))||{}}catch(e){}})();
+const evItems=d=>EVAL_LISTS[d.k]&&EVAL_LISTS[d.k].length?EVAL_LISTS[d.k]:d.items;
+const EVAL_DEF_ON={BP:["arch","civil","elec","san"],FN:["civil"],DE:["civil"],SN:["civil","elec"],GP:["civil"],EL:["elec"],PL:["san"],MC:["mech"]};
+const evShow=a=>!!EVAL_DEF_ON[a.kind||"BP"];
+function evOf(a,d){a.ev=a.ev||{};const e=a.ev[d.k]=a.ev[d.k]||{on:(EVAL_DEF_ON[a.kind||"BP"]||[]).includes(d.k),r:{},n:{}};e.r=e.r||{};e.n=e.n||{};return e}
+function evStat(a,d){const e=evOf(a,d),L=evItems(d);const done=L.filter((t,i)=>e.r[i]).length,no=L.filter((t,i)=>e.r[i]==="no").length;
+  return{e,L,done,no,complete:done===L.length,result:done<L.length?"In progress":no?"With deficiencies":"Complied"}}
+let EV_OPEN=new Set();
+function evalCardHtml(a){if(!evShow(a))return"";const D=EVAL_DISC.map(d=>({d,...evStat(a,d)}));const on=D.filter(x=>x.e.on);
+  const staff=(STAFF||[]).map(s=>s.name).filter(Boolean);
+  return`<div class="dcard"><h3>Plan evaluation per discipline</h3><p class="sub" style="margin:0 0 6px">Check each drawing and document against the NBC and its referral codes. Disciplines not needed for this project can be switched off. ${on.length&&on.every(x=>x.result==="Complied")?`<b style="color:var(--ok)">All disciplines complied.</b>`:""}</p>
+   ${D.map(({d,e,L,done,no,result})=>`<details class="dcard" style="padding:6px 10px;margin:6px 0" data-evd="${d.k}" ${EV_OPEN.has(d.k)?"open":""}><summary style="cursor:pointer;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+     <b style="font-size:13.5px">${esc(d.l)}</b>${e.on?`<span class="chip ${result==="Complied"?"s-permit":result==="With deficiencies"?"s-none":"s-verify"}">${result} · ${done}/${L.length}${no?` · ${no} deficient`:""}</span>${e.by?`<span class="muted" style="font-size:11.5px">${esc(e.by)}${e.date?" · "+esc(e.date):""}</span>`:""}`:`<span class="chip">not applicable</span>`}</summary>
+     <label class="row" style="gap:6px;margin:6px 0"><input type="checkbox" data-evon="${d.k}" style="width:auto" ${e.on?"checked":""}> Applicable to this project</label>
+     ${e.on?`<div class="tablewrap"><table class="dtable"><thead><tr><th style="text-align:left">Drawing / document</th><th>Complied</th><th>Deficient</th><th>N/A</th><th style="text-align:left">Findings / correction needed</th></tr></thead><tbody>
+      ${L.map((t,i)=>`<tr><td style="text-align:left;white-space:normal;min-width:220px">${esc(t)}</td>${["ok","no","na"].map(v=>`<td><input type="radio" style="width:auto" name="ev-${d.k}-${i}" data-evr="${d.k}|${i}|${v}" ${e.r[i]===v?"checked":""}></td>`).join("")}<td><input data-evn="${d.k}|${i}" value="${esc(e.n[i]||"")}" placeholder="${e.r[i]==="no"?"state the correction":""}" style="min-width:150px"></td></tr>`).join("")}</tbody></table></div>
+      <div class="row" style="margin-top:6px;align-items:flex-end"><label class="f" style="flex:1 1 200px"><span>Evaluated by</span><input data-evby="${d.k}" list="evStaff" value="${esc(e.by||USER_NAME||"")}"></label><label class="f" style="flex:0 0 160px"><span>Date</span><input type="date" data-evdt="${d.k}" value="${esc(e.date||"")}"></label>
+       <button class="btn small" data-evall="${d.k}">Mark the rest complied</button><button class="btn small" data-evedit="${d.k}">Edit the list</button></div>`:""}</details>`).join("")}
+   <datalist id="evStaff">${staff.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>
+   <div class="row" style="margin-top:6px"><button class="btn small" id="evPrint">Print evaluation sheets</button>${on.some(x=>x.no)?`<button class="btn small" id="evNotice">Print notice of plan deficiencies</button>`:""}</div></div>`}
+function bindEval(a,rerender){const root=$("#appBody");if(!root||!evShow(a))return;const D=k=>EVAL_DISC.find(d=>d.k===k);
+  root.querySelectorAll("[data-evd]").forEach(el=>el.addEventListener("toggle",()=>{el.open?EV_OPEN.add(el.dataset.evd):EV_OPEN.delete(el.dataset.evd)}));
+  const stamp=e=>{if(!e.date)e.date=today();if(!e.by)e.by=USER_NAME||""};
+  const after=()=>{const on=EVAL_DISC.map(d=>evStat(a,d)).filter(x=>x.e.on);if(on.length&&on.every(x=>x.complete)&&!a.evaluated){a.evaluated=on.map(x=>x.e.date||today()).sort().pop();toast("All disciplines evaluated — 'Evaluated' date set")}rerender()};
+  root.querySelectorAll("[data-evon]").forEach(c=>c.onchange=()=>{evOf(a,D(c.dataset.evon)).on=c.checked;EV_OPEN.add(c.dataset.evon);rerender()});
+  root.querySelectorAll("[data-evr]").forEach(r=>r.onchange=()=>{const[k,i,v]=r.dataset.evr.split("|");const e=evOf(a,D(k));e.r[i]=v;stamp(e);EV_OPEN.add(k);after()});
+  root.querySelectorAll("[data-evn]").forEach(n=>n.oninput=()=>{const[k,i]=n.dataset.evn.split("|");evOf(a,D(k)).n[i]=n.value});
+  root.querySelectorAll("[data-evby]").forEach(n=>n.onchange=()=>{evOf(a,D(n.dataset.evby)).by=n.value.trim().toUpperCase()});
+  root.querySelectorAll("[data-evdt]").forEach(n=>n.onchange=()=>{evOf(a,D(n.dataset.evdt)).date=n.value});
+  root.querySelectorAll("[data-evall]").forEach(b=>b.onclick=()=>{const d=D(b.dataset.evall),e=evOf(a,d);evItems(d).forEach((t,i)=>{if(!e.r[i])e.r[i]="ok"});stamp(e);EV_OPEN.add(d.k);after()});
+  root.querySelectorAll("[data-evedit]").forEach(b=>b.onclick=async()=>{const d=D(b.dataset.evedit);const t=prompt(`${d.l} — one item per line (separate with | ). Leave empty to restore the default list.`,evItems(d).join(" | "));if(t===null)return;
+    const L=t.split("|").map(s=>s.trim()).filter(Boolean);EVAL_LISTS={...EVAL_LISTS};if(L.length)EVAL_LISTS[d.k]=L;else delete EVAL_LISTS[d.k];await DB.set("evalLists",EVAL_LISTS);EV_OPEN.add(d.k);rerender()});
+  const pr=$("#evPrint");if(pr)pr.onclick=async()=>{await appSaveQuiet(a);audit("print-eval",a.no,a.name);printReport(evalSheetsHtml(a))};
+  const nt=$("#evNotice");if(nt)nt.onclick=async()=>{await appSaveQuiet(a);audit("print-eval-notice",a.no,a.name);printReport(evalNoticeHtml(a))}}
+function evalSheetsHtml(a){const on=EVAL_DISC.map(d=>({d,...evStat(a,d)})).filter(x=>x.e.on);if(!on.length)return`<div class="rpage"><p>No discipline marked applicable.</p></div>`;
+  return on.map(({d,e,L,result})=>`<div class="rpage" style="font-size:9.5pt">${rptHead("EVALUATION SHEET — "+d.l.toUpperCase(),`Application ${esc(a.no)} · ${esc(a.name)}`)}
+   <p style="margin:0 0 6px">Project: <b>${esc(a.project||"")}</b> · Location: ${esc([a.brgy,"Santo Tomas, La Union"].filter(Boolean).join(", "))}${a.permitNo?" · Permit no. "+esc(a.permitNo):""}</p>
+   <table><thead><tr><th>#</th><th>Drawing / document</th><th>Complied</th><th>Deficient</th><th>N/A</th><th>Findings / correction needed</th></tr></thead><tbody>
+   ${L.map((t,i)=>`<tr><td>${i+1}</td><td class="l">${esc(t)}</td><td>${e.r[i]==="ok"?"✔":""}</td><td>${e.r[i]==="no"?"✘":""}</td><td>${e.r[i]==="na"?"–":""}</td><td class="l">${esc(e.n[i]||"")}</td></tr>`).join("")}</tbody></table>
+   <p style="margin-top:8px"><b>Result:</b> ${esc(result)}</p>
+   <div class="sig"><div>Evaluated by:<b>${esc(e.by||" ")}</b>${esc(e.date?longDate(e.date):"Date: ____________")}</div><div>Noted:<b>${esc(BO_NAME)}</b>${esc(BO_TITLE)}</div></div></div>`).join("")}
+function evalNoticeHtml(a){const on=EVAL_DISC.map(d=>({d,...evStat(a,d)})).filter(x=>x.e.on&&x.no);
+  return`<div class="rpage" style="padding:.5in .8in;font:10.5pt/1.45 Arial,Helvetica,sans-serif">${rptHead("NOTICE OF PLAN DEFICIENCIES","")}
+   <p style="text-align:right">${esc(longDate(today()))}</p><p><b>${esc(a.name)}</b><br>${esc(a.brgy?"Barangay "+a.brgy+", Santo Tomas, La Union":"")}</p>
+   <p>Re: Application No. <b>${esc(a.no)}</b>${a.project?`, ${esc(a.project)}`:""}</p><p>Dear Applicant:</p>
+   <p style="text-align:justify">After evaluation of the plans and documents submitted, the following corrections are needed before your application can be approved. Please coordinate with your design professional(s) and resubmit the corrected sheets to this Office, quoting the application number above.</p>
+   ${on.map(({d,e,L})=>`<p style="margin:8px 0 2px"><b>${esc(d.l)}</b> (${esc(d.prof)})</p><ol style="margin:0 0 4px 0">${L.map((t,i)=>e.r[i]==="no"?`<li>${esc(t)}${e.n[i]?` — <i>${esc(e.n[i])}</i>`:""}</li>`:"").join("")}</ol>`).join("")}
+   <p style="text-align:justify">This notice is issued within the prescribed processing time pursuant to Section 9 of RA 11032. For clarification, please approach this Office during office hours.</p>
+   <div style="margin-top:28px;width:3.2in;margin-left:auto;text-align:center"><b style="display:block;border-bottom:1px solid #111;text-transform:uppercase">${esc(BO_NAME)}</b>${esc(BO_TITLE)}</div>
+   <p style="margin-top:20px;font-size:9.5pt">Received by: ____________________________ &nbsp; Date / time: ____________________</p>${privacyHtml(7.5)}</div>`}
+
 /* ---- 7. Alerts: what needs action today ---- */
 let ALERTS=[];
 const daysTo=iso=>Math.round((new Date(iso+"T00:00:00")-new Date(isoToday()+"T00:00:00"))/864e5);
@@ -7190,6 +7249,7 @@ const WHATS_NEW=[
   "Reports: Monthly report to the Mayor; Certificate of Annual Inspection (CAI) with numbering",
   "Year-end close: summary, permanent backup and numbering check",
   "New name: OBO-BPMS Santo Tomas (Building Permit Management System)",
+  "Plan evaluation per discipline in the application (architectural, civil/structural, electrical, sanitary/plumbing, mechanical, electronics) with evaluation sheets and a notice of plan deficiencies",
   "Dashboard: period and barangay filters (click a barangay), year-on-year change, office performance, applications by step, collections per month, occupancy groups, biggest projects, geotagging progress, violations by stage",
   "Optional zoning / locational clearance fee in the application (entered or computed by the Zoning Officer from an editable schedule; shown in daily collections)",
   "📷 Geotagged photos from the phone camera: GPS, date, time, owner and NOV no. stamped on the photo; attached as annex to the NOV / WSO letters"]],
@@ -7519,6 +7579,7 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
     <p class="sub" style="margin:0 0 6px">${a.released?`Permit released ${esc(a.released)} — clearances due <b>${esc(i.post.due)}</b> (30 calendar days).${i.post.overdue?` <b style="color:var(--bad)">OVERDUE — the Certificate of Occupancy may be withheld until submitted.</b>`:""}`:"Due 30 calendar days after the permit is released (set the Released date above)."}</p>
     <ul style="margin:0 0 6px 18px;font-size:13px">${i.post.items.map(r=>`<li>${esc(r)} ${reqOn(a,r)?"✓":""}</li>`).join("")}</ul>
     <label class="f" style="flex:0 0 auto;max-width:260px"><span>All post-requirements submitted on</span><input type="date" data-ap="postDone" value="${esc(a.postDone||"")}"></label></div>`:""}
+   ${evalCardHtml(a)}
    <div id="docsSlot"></div>
    <div class="dcard"><h3>Remarks</h3><textarea data-ap="remarks" rows="3">${esc(a.remarks||"")}</textarea></div>
    <div class="row"><button class="btn primary" id="apSave">Save</button><button class="btn" id="apAck" title="Two copies: applicant and office">Acknowledgment slip</button><button class="btn" id="apDef">Notice of incomplete requirements</button><button class="btn" id="apDis">Notice of disapproval</button><button class="btn" id="apMsg" title="Text or email the applicant">Message</button>${APP_ASSESS[a.kind||"BP"]?`<button class="btn" id="apAssess">${a.assessId?"Open assessment":"Create assessment"}</button>`:""}${isNew?"":`<button class="btn danger" id="apDel">Delete</button>`}</div></div>`;
@@ -7535,7 +7596,7 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
   $("#apAck").onclick=async()=>{if(!await svA())return;audit("print-ack",a.no,a.name);printReport(ackHtml(a))};
   $("#apDef").onclick=async()=>{if(!await svA())return;a.defNotice=today();await saveApps();audit("print-deficiency",a.no,a.name);printReport(noticeHtml(a,"def"))};
   $("#apDis").onclick=async()=>{if(!await svA())return;const t=prompt("Reason(s) for disapproval — separate with | :",a.disReasons||"");if(!t)return;a.disReasons=t;a.disapproved=today();await saveApps();audit("print-disapproval",a.no,a.name);printReport(noticeHtml(a,"dis",t.split("|").map(x=>x.trim()).filter(Boolean)))};
-  if(isTower(a))bindTower(a,renderAppForm);if(isNM(a))bindNM(a,renderAppForm);if(a.kind==="OP")bindOP(a,renderAppForm);bindAppPin(a,renderAppForm);bindZc(a,renderAppForm);$("#apMsg").onclick=async()=>{if(!String(a.name||"").trim())return toast("Enter the applicant");await appSaveQuiet(a);openMsg(a)};
+  if(isTower(a))bindTower(a,renderAppForm);if(isNM(a))bindNM(a,renderAppForm);if(a.kind==="OP")bindOP(a,renderAppForm);bindAppPin(a,renderAppForm);bindZc(a,renderAppForm);bindEval(a,renderAppForm);$("#apMsg").onclick=async()=>{if(!String(a.name||"").trim())return toast("Enter the applicant");await appSaveQuiet(a);openMsg(a)};
   docsCardHtml(a).then(h=>{const sl=document.getElementById("docsSlot");if(sl&&APPED===a){sl.innerHTML=h;bindDocs(a,renderAppForm)}}).catch(()=>{});
   $("#apBack").onclick=()=>{APPED=null;renderApps()};
   $("#apSave").onclick=async()=>{if(!a.name.trim())return toast("Enter the applicant");a.no=String(a.no||"").trim().toUpperCase();
