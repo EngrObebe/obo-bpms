@@ -1196,6 +1196,7 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
       <label class="f"><span>Zoning map (CLUP) as GeoJSON in WGS 84 — export from QGIS: Layer › Export › Save Features As… GeoJSON, CRS EPSG:4326</span><input type="file" id="imZone" accept=".json,.geojson,application/json"></label>
       <p class="muted" style="margin:0;font-size:12px" id="zoneInfo"></p>
       <div id="zoneUsesBox"></div>
+      <div id="zcSchedBox"></div>
       <label class="f"><span>Tax map / cadastral lots from the Assessor (GeoJSON, EPSG:4326) — kept on this computer only; keep the file in Drive › 08 References and load it on each computer</span><input type="file" id="imParcel" accept=".json,.geojson,application/json"></label>
       <p class="muted" style="margin:0;font-size:12px" id="parcelInfo"></p>
       <h2 class="sec">Basemap</h2>
@@ -4522,7 +4523,7 @@ async function onImportMdf(e){const f=e.target.files[0];if(!f)return;const t0=Da
     audit("import-lgubp",f.name,`${R.reg.length} records, last ctrl ${R.maxCtrl}`);drawPins();renderReg();renderData();
     toast(`Register updated — ${newP.length} new permit(s), ${newA.length} new assessed (${((Date.now()-t0)/1000).toFixed(1)} s)`)}
   catch(x){alert("Cannot read the file: "+x.message)}finally{e.target.value=""}}
-async function renderData(){renderBkBox();try{renderPhotoBox()}catch(e){}try{renderFieldBox()}catch(e){}try{renderZoneUses()}catch(e){}
+async function renderData(){renderBkBox();try{renderPhotoBox()}catch(e){}try{renderFieldBox()}catch(e){}try{renderZoneUses()}catch(e){}try{renderZcSched()}catch(e){}
   if($("#parcelInfo"))$("#parcelInfo").textContent=PARCELS?`${(PARCELS.features||[]).length} lots loaded on this computer — turn on "Tax map (lots)" in the map layers.`:"";
   if($("#imParcel"))$("#imParcel").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const n=await importParcels(f);toast(n+" lots loaded");renderData()}catch(x){alert("Cannot load: "+x.message)}e.target.value=""};
   if($("#yeBtn"))$("#yeBtn").onclick=yearEnd;if($("#docsInfo")){$("#docsInfo").innerHTML=DOCS_DIR?`Scans are also saved in <b>${esc(DOCS_DIR.name)}</b> (one sub-folder per application)${DOCS_OK?"":" — permission is asked when you attach a file"}.`:"Scans are kept on this computer only. Choose a shared folder (e.g. Google Drive → Tanaw → <i>04 Applications / 2026</i>) so co-workers can open them.";$("#docsPick").onclick=docsChooseDir}
@@ -5449,8 +5450,9 @@ function collRows(a,b){const L=[];
   for(const r of REG){if(r.k!=="permit")continue;
     if(!r.exempt&&+r.fees>0&&inRange(r.paid||r.date,a,b))L.push({date:isoOf(r.paid||r.date),or:r.orNo||"",payor:r.name,nature:(r.typeLabel||r.type)+" fees",ref:r.pno||r.no,amt:+r.fees});
     if(r.op&&+r.op.fees>0&&inRange(r.op.paid||r.op.date,a,b))L.push({date:isoOf(r.op.paid||r.op.date),or:r.op.or||"",payor:r.name,nature:"Certificate of occupancy fees",ref:r.opNo||r.pno||r.no,amt:+r.op.fees})}
+  for(const x of APPS){const z=x.zc;if(z&&z.on&&+z.fee>0&&z.paid&&z.paid>=a&&z.paid<=b)L.push({date:z.paid,or:z.or||"",payor:x.name,nature:"Zoning / locational clearance fee",ref:z.no||x.no,amt:+z.fee})}
   for(const x of APPS){if(!isNM(x))continue;
-    if(+x.epFee>0&&x.epPaid&&x.epPaid>=a&&x.epPaid<=b)L.push({date:x.epPaid,or:x.epOr||"",payor:x.name,nature:"Net-metering electrical permit",ref:x.epNo||x.no,amt:+x.epFee});
+    if(+x.epFee>0&&x.epPaid&&x.epPaid>=a&&x.epPaid<=b&&!REG.some(r=>r.type==="EP"&&r.appNo===x.no))L.push({date:x.epPaid,or:x.epOr||"",payor:x.name,nature:"Net-metering electrical permit",ref:x.epNo||x.no,amt:+x.epFee});
     if(+x.cfFee>0&&x.cfPaid&&x.cfPaid>=a&&x.cfPaid<=b)L.push({date:x.cfPaid,or:x.cfOr||"",payor:x.name,nature:"Net-metering CFEI",ref:x.cfeiNo||x.no,amt:+x.cfFee})}
   return L.sort((p,q)=>p.date.localeCompare(q.date)||String(p.or).localeCompare(String(q.or)))}
 function collHtml(){const[a,b]=DV.colRange;const L=collRows(a,b),tot=L.reduce((s,r)=>s+r.amt,0);const days=[...new Set(L.map(r=>r.date))];
@@ -6850,6 +6852,50 @@ if(location.protocol==="https:"&&"serviceWorker" in navigator){navigator.service
   navigator.serviceWorker.addEventListener("message",e=>{if(e.data&&e.data.type==="update"){const b=document.createElement("div");b.className="tdlg";b.style.cssText+="align-items:flex-end;background:transparent;pointer-events:none";
     b.innerHTML=`<div class="tdlg-box" style="pointer-events:auto;width:min(420px,100%);flex-direction:row;align-items:center;justify-content:space-between"><span>A new version of OBO-BPMS is ready.</span><button class="btn primary" id="swRe">Update now</button></div>`;document.body.appendChild(b);b.querySelector("#swRe").onclick=()=>location.reload()}})}
 
+/* ---- Zoning / locational clearance fee (optional; computed and signed by the Zoning Officer) ---- */
+let ZC_SCHED={},ZC_OFFICER={name:"",title:"Municipal Zoning Officer"};
+(async()=>{try{ZC_SCHED=(await DB.get("zcSchedule"))||{};const o=await DB.get("zcOfficer");if(o)ZC_OFFICER=o}catch(e){}})();
+const ZC_CATS=["Residential","Commercial","Institutional","Industrial","Agricultural","Mixed use"];
+function zcCompute(use,cost){const S=ZC_SCHED[use];cost=+cost||0;if(!S||!(S.rows||[]).length)return null;const rows=S.rows.filter(r=>+r[0]>0).sort((a,b)=>a[0]-b[0]);
+  for(const[upto,fee]of rows)if(cost<=+upto)return{fee:+fee,how:`project cost ₱${num2(cost)} ≤ ₱${num2(+upto)} → ₱${num2(+fee)}`};
+  const last=rows[rows.length-1]||[0,0];const base=+(S.base!=null&&S.base!==""?S.base:last[1])||0,pct=+S.pct||0,ex=cost-(+last[0]||0);const fee=Math.round((base+ex*pct/100)*100)/100;
+  return{fee,how:`₱${num2(base)} + ${pct}% of ₱${num2(ex)} in excess of ₱${num2(+last[0]||0)} = ₱${num2(fee)}`}}
+function zcCostOf(a){const x=a.assessId&&assessCache.find(z=>z.id===a.assessId);if(x){try{const R=BPFees.compute(toEngine(x));return +x.projCost||R.totalCost||0}catch(e){return +x.projCost||0}}return 0}
+function zcCardHtml(a){const z=a.zc||{};if(!z.on)return`<div class="dcard"><h3>Zoning / locational clearance</h3><p class="sub" style="margin:0 0 6px">Optional. The Zoning Officer computes and issues the clearance; record it here so it shows in the checklist and the collections.</p><button class="btn small" id="zcOn">Add zoning clearance</button></div>`;
+  const pin=appPinOf(a),zone=pin&&ZONING?zoneAt(pin.lat,pin.lng):"",use=z.use||useOfApp(a)||"",cost=z.cost!=null&&z.cost!==""?z.cost:(zcCostOf(a)||""),sug=zcCompute(use,cost);
+  const f=(k,l,t,ph)=>`<label class="f"><span>${l}</span><input data-zc="${k}" ${t?`type="${t}"`:""} value="${esc(z[k]??(k==="cost"?cost:""))}" placeholder="${esc(ph||"")}"></label>`;
+  return`<div class="dcard"><h3>Zoning / locational clearance</h3>
+   <p class="sub" style="margin:0 0 6px">Computed and issued by the Zoning Officer${ZC_OFFICER.name?" ("+esc(ZC_OFFICER.name)+")":""}. Zone at the pin: <b>${esc(zone||"—")}</b>.</p>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
+    <label class="f"><span>Use</span><select data-zc="use"><option value="">—</option>${ZC_CATS.map(c=>`<option ${use===c?"selected":""}>${c}</option>`).join("")}</select></label>
+    ${f("cost","Project cost (₱)","","from the assessment")}${f("fee","Zoning fee (₱) — by the Zoning Officer")}${f("or","OR no.")}${f("paid","Date paid","date")}${f("no","Clearance no.")}${f("date","Date issued","date")}${f("remarks","Remarks / conditions")}</div>
+   <div class="row" style="margin-top:6px;align-items:center">${sug?`<span class="sub" style="margin:0">Schedule: ${esc(sug.how)}</span><button class="btn small" id="zcUse">Use ₱${num2(sug.fee)}</button>`:`<span class="sub" style="margin:0">${use?"No fee schedule set for "+esc(use)+" (Data → Zoning).":"Choose the use to see the schedule."} The Zoning Officer may type the fee directly.</span>`}
+    <button class="btn small" id="zcPrint">Print zoning fee assessment</button><button class="btn small danger" id="zcOff">Remove</button></div></div>`}
+function bindZc(a,rerender){const on=$("#zcOn");if(on)on.onclick=()=>{a.zc={on:true,by:ZC_OFFICER.name||""};rerender()};
+  document.querySelectorAll("#appBody [data-zc]").forEach(i=>i.addEventListener(i.tagName==="SELECT"||i.type==="date"?"change":"input",()=>{a.zc=a.zc||{on:true};a.zc[i.dataset.zc]=i.value;if(i.tagName==="SELECT"||i.dataset.zc==="cost"&&i.type!=="date")clearTimeout(bindZc._t),bindZc._t=setTimeout(rerender,i.tagName==="SELECT"?0:700)}));
+  const u=$("#zcUse");if(u)u.onclick=()=>{const z=a.zc;const s=zcCompute(z.use||useOfApp(a),z.cost!=null&&z.cost!==""?z.cost:zcCostOf(a));if(s){z.fee=String(s.fee);z.feeHow=s.how;rerender()}};
+  const off=$("#zcOff");if(off)off.onclick=()=>{if(confirm("Remove the zoning clearance record from this application?")){delete a.zc;rerender()}};
+  const pr=$("#zcPrint");if(pr)pr.onclick=async()=>{await appSaveQuiet(a);audit("print-zc",a.no,a.name);printReport(zcSlipHtml(a))}}
+function zcSlipHtml(a){const z=a.zc||{},pin=appPinOf(a),zone=pin&&ZONING?zoneAt(pin.lat,pin.lng):"";
+  return`<div class="rpage" style="font:11pt/1.5 Arial,Helvetica,sans-serif;padding:.7in .9in">${rptHead("ZONING / LOCATIONAL CLEARANCE FEE ASSESSMENT","Application "+esc(a.no))}
+   <table style="margin-top:10px"><tbody>${[["Applicant",a.name],["Project",a.project||""],["Location",[a.brgy,"Santo Tomas, La Union"].filter(Boolean).join(", ")],["Zone (CLUP)",zone||"—"],["Use",z.use||useOfApp(a)||""],["Project cost",z.cost?"₱ "+num2(+z.cost):""],
+     ["Zoning fee",z.fee?"₱ "+num2(+z.fee):"₱ ____________"],["Basis",z.feeHow||"per the zoning ordinance / schedule of fees"],["OR no. / date paid",[z.or,z.paid].filter(Boolean).join(" / ")],["Clearance no. / date issued",[z.no,z.date].filter(Boolean).join(" / ")],["Remarks / conditions",z.remarks||""]]
+     .map(([l,v])=>`<tr><td class="l" style="width:34%"><b>${esc(l)}</b></td><td class="l">${esc(v||"")}</td></tr>`).join("")}</tbody></table>
+   <div class="sig" style="margin-top:40px"><div>Assessed by:<b>${esc(z.by||ZC_OFFICER.name||" ")}</b>${esc(ZC_OFFICER.title||"Zoning Officer")}</div><div>Received by:<b> </b>Applicant / representative</div></div></div>`}
+function renderZcSched(){const el=document.getElementById("zcSchedBox");if(!el)return;
+  el.innerHTML=`<details class="dcard" style="padding:8px 10px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Zoning clearance fee schedule (optional — for the Zoning Officer)</summary>
+   <div class="row" style="margin-top:6px"><label class="f" style="flex:1 1 200px"><span>Zoning Officer</span><input id="zcoN" value="${esc(ZC_OFFICER.name)}"></label><label class="f" style="flex:1 1 200px"><span>Designation</span><input id="zcoT" value="${esc(ZC_OFFICER.title)}"></label></div>
+   <p class="muted" style="font-size:11.5px;margin:6px 0">Enter the rates of the zoning ordinance / revenue code. For each use: brackets "project cost up to ₱ → fee ₱", then for costs above the last bracket "fixed ₱ + % of the excess". Leave blank if the Zoning Officer computes manually.</p>
+   ${ZC_CATS.map(c=>{const S=ZC_SCHED[c]||{rows:[]};const rows=[...(S.rows||[]),["",""]];return`<div style="margin:6px 0"><b style="font-size:12.5px">${c}</b>
+    <div class="tablewrap"><table class="dtable"><thead><tr><th>Project cost up to (₱)</th><th>Fee (₱)</th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td><input data-zs="${c}" data-zi="${i}" data-zk="0" value="${esc(r[0])}" inputmode="decimal"></td><td><input data-zs="${c}" data-zi="${i}" data-zk="1" value="${esc(r[1])}" inputmode="decimal"></td></tr>`).join("")}</tbody></table></div>
+    <div class="row"><label class="f" style="flex:1 1 140px"><span>Above the last bracket: fixed (₱)</span><input data-zsb="${c}" value="${esc(S.base??"")}" placeholder="= last fee"></label><label class="f" style="flex:1 1 140px"><span>+ % of the excess</span><input data-zsp="${c}" value="${esc(S.pct??"")}" inputmode="decimal"></label></div></div>`}).join("")}</details>`;
+  const save=async()=>{await DB.set("zcSchedule",ZC_SCHED)};
+  $("#zcoN").onchange=async e=>{ZC_OFFICER={...ZC_OFFICER,name:e.target.value.trim().toUpperCase()};await DB.set("zcOfficer",ZC_OFFICER)};$("#zcoT").onchange=async e=>{ZC_OFFICER={...ZC_OFFICER,title:e.target.value.trim()};await DB.set("zcOfficer",ZC_OFFICER)};
+  el.querySelectorAll("[data-zs]").forEach(i=>i.onchange=async()=>{const c=i.dataset.zs,S=ZC_SCHED[c]=ZC_SCHED[c]||{rows:[]};const k=+i.dataset.zi;S.rows[k]=S.rows[k]||["",""];S.rows[k][+i.dataset.zk]=i.value.replace(/[,₱\s]/g,"");
+    S.rows=S.rows.filter(r=>r&&(r[0]!==""||r[1]!==""));await save();renderZcSched();el.querySelector("details").open=true});
+  el.querySelectorAll("[data-zsb]").forEach(i=>i.onchange=async()=>{const S=ZC_SCHED[i.dataset.zsb]=ZC_SCHED[i.dataset.zsb]||{rows:[]};S.base=i.value.replace(/[,₱\s]/g,"");await save()});
+  el.querySelectorAll("[data-zsp]").forEach(i=>i.onchange=async()=>{const S=ZC_SCHED[i.dataset.zsp]=ZC_SCHED[i.dataset.zsp]||{rows:[]};S.pct=i.value.replace(/[%\s]/g,"");await save()})}
+
 /* ---- 7. Alerts: what needs action today ---- */
 let ALERTS=[];
 const daysTo=iso=>Math.round((new Date(iso+"T00:00:00")-new Date(isoToday()+"T00:00:00"))/864e5);
@@ -7056,6 +7102,7 @@ const WHATS_NEW=[
   "Reports: Monthly report to the Mayor; Certificate of Annual Inspection (CAI) with numbering",
   "Year-end close: summary, permanent backup and numbering check",
   "New name: OBO-BPMS Santo Tomas (Building Permit Management System)",
+  "Optional zoning / locational clearance fee in the application (entered or computed by the Zoning Officer from an editable schedule; shown in daily collections)",
   "📷 Geotagged photos from the phone camera: GPS, date, time, owner and NOV no. stamped on the photo; attached as annex to the NOV / WSO letters"]],
  ["1.2 — 2026-10-14",["Register → Correct / cancel: fix a name, OR or project, cancel a permit posted in error, or revoke a permit — with reason and history; the number is never re-used",
   "Posting lock: two computers cannot take the same permit number; duplicates, if any, are flagged with a one-click new number",
@@ -7371,6 +7418,7 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
     ${isNM(a)?`<label class="f"><span>Processing time</span><input disabled value="EP ${APP_LIMIT.nmEP||3} / CFEI ${APP_LIMIT.nmCF||7} working days (JMC 001 s.2026)"></label>`:isTower(a)?`<label class="f"><span>Processing time</span><input disabled value="${APP_LIMIT.tower||7} working days, non-extendible (JMC 2023-01)"></label>`:`<label class="f"><span>Classification (RA 11032)</span><select data-ap="cx">${TIERS.map(([k,l])=>`<option value="${tierVal[k]}" ${tierOf(a)===k?"selected":""}>${l} — ${APP_LIMIT[k]} working days</option>`).join("")}</select></label>`}
     ${f("permitNo","Permit no. (when issued)")}</div></div>
    ${appPinCardHtml(a)}
+   ${(a.kind||"BP")==="BP"||a.kind==="TW"?zcCardHtml(a):""}
    <div class="dcard"><h3>Progress</h3><div class="steps">${APP_STEPS.map(([k,l])=>`<div class="stp ${a[k]?"on":""}"><span>${l}</span><input type="date" data-ap="${k}" value="${esc(a[k]||"")}"><button class="btn small" data-today="${k}">${a[k]?"✓":"Today"}</button></div>`).join("")}</div>
     <p class="sub" style="margin:4px 0 0">Working days count Monday–Friday from the date received; holidays are not excluded.</p></div>
    ${isNM(a)?nmCardHtml(a):""}${a.kind==="OP"?opCardHtml(a):""}${isTower(a)?towerCardHtml(a):""}${(a.kind||"BP")==="BP"?ownCardHtml(a):""}
@@ -7398,7 +7446,7 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
   $("#apAck").onclick=async()=>{if(!await svA())return;audit("print-ack",a.no,a.name);printReport(ackHtml(a))};
   $("#apDef").onclick=async()=>{if(!await svA())return;a.defNotice=today();await saveApps();audit("print-deficiency",a.no,a.name);printReport(noticeHtml(a,"def"))};
   $("#apDis").onclick=async()=>{if(!await svA())return;const t=prompt("Reason(s) for disapproval — separate with | :",a.disReasons||"");if(!t)return;a.disReasons=t;a.disapproved=today();await saveApps();audit("print-disapproval",a.no,a.name);printReport(noticeHtml(a,"dis",t.split("|").map(x=>x.trim()).filter(Boolean)))};
-  if(isTower(a))bindTower(a,renderAppForm);if(isNM(a))bindNM(a,renderAppForm);if(a.kind==="OP")bindOP(a,renderAppForm);bindAppPin(a,renderAppForm);$("#apMsg").onclick=async()=>{if(!String(a.name||"").trim())return toast("Enter the applicant");await appSaveQuiet(a);openMsg(a)};
+  if(isTower(a))bindTower(a,renderAppForm);if(isNM(a))bindNM(a,renderAppForm);if(a.kind==="OP")bindOP(a,renderAppForm);bindAppPin(a,renderAppForm);bindZc(a,renderAppForm);$("#apMsg").onclick=async()=>{if(!String(a.name||"").trim())return toast("Enter the applicant");await appSaveQuiet(a);openMsg(a)};
   docsCardHtml(a).then(h=>{const sl=document.getElementById("docsSlot");if(sl&&APPED===a){sl.innerHTML=h;bindDocs(a,renderAppForm)}}).catch(()=>{});
   $("#apBack").onclick=()=>{APPED=null;renderApps()};
   $("#apSave").onclick=async()=>{if(!a.name.trim())return toast("Enter the applicant");a.no=String(a.no||"").trim().toUpperCase();
