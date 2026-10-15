@@ -1114,6 +1114,19 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
 .wf-sub{font-size:12px;color:var(--muted);margin:4px 0}
 .wf-alert{border-left:4px solid var(--bad);padding:8px 10px;background:var(--soft);font-size:12px}
 @media(max-width:640px){.wf-review td:first-child{min-width:170px}.wf-review input{min-width:120px}}
+/* v1.6 · field action center */
+.fa-note{font-size:12px;color:var(--muted);line-height:1.45}
+.fa-warning{padding:8px 11px;border-left:3px solid var(--warn);background:var(--soft);font-size:12px}
+.fa-task{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel);display:flex;flex-direction:column;gap:4px}
+.fa-task.due{border-left:4px solid var(--bad)}
+.fa-task.soon{border-left:4px solid var(--warn)}
+.fa-task .fa-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.fa-task .fa-head b{font-size:13px}
+.fa-task .fa-meta{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.fa-board{display:flex;flex-direction:column;gap:8px}
+.fa-plan{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--soft);display:flex;flex-direction:column;gap:8px}
+.fa-plan .row label{min-width:145px}
+@media(max-width:640px){.fa-task{padding:10px}.fa-plan .row label{flex:1 1 100%}}
 </style>
 </head>
 <body>
@@ -4237,6 +4250,7 @@ function renderForm(){const v=$("#v-form");
     <div class="photos">${(cur.photos||[]).map((ph,i)=>`<figure>${phImg(ph,"Photo "+(i+1))}${(()=>{const x=photoInfoOf(cur,ph,i);return x?`<span style="position:absolute;left:3px;bottom:3px;background:#000a;color:#fff;font-size:10px;padding:1px 4px;border-radius:3px">📍${x.kind==="NOV"?" NOV":""}</span>`:""})()}<button class="btn small danger" data-ph="${i}" aria-label="Remove">×</button></figure>`).join("")}</div>
   </fieldset>
   ${novFieldset(cur)}
+  ${fieldVisitPlanHtml(cur)}
   ${inspFieldset(cur)}
   <fieldset><legend>Fees</legend>
     ${(()=>{const L=assessCache.filter(a=>a.pinId===cur.id);return L.length?L.map(a=>`<div class="row" style="justify-content:space-between"><span><span class="mono">${esc(a.ctrl)}</span> · ${esc(a.date)}</span><span><b>${peso(a.total)}</b> <button class="btn small" data-oa="${a.id}">Open</button></span></div>`).join(""):`<div class="muted" style="font-size:12.5px">No assessment yet. Building permit fees will be computed from this pin's data${statusOf(cur)==="none"&&cur.stage?", including surcharge based on construction stage":""}.</div>`})()}
@@ -4246,7 +4260,7 @@ function renderForm(){const v=$("#v-form");
   ${confirmDel?`<div class="confirm"><b>Delete this pin?</b><span class="muted">This cannot be undone unless you have a backup.</span><div class="row"><button class="btn danger" id="delYes">Yes, delete</button><button class="btn" id="delNo">Don't</button></div></div>`:""}`;
   const bind=(id,key,fn)=>{const el=$("#"+id);if(el)el.addEventListener(el.type==="checkbox"?"change":"input",()=>{cur[key]=el.type==="checkbox"?el.checked:el.value;fn&&fn()})};
   bind("f_owner","owner",renderMatches);bind("f_contact","contact");bind("f_location","location");bind("f_storeys","storeys");bind("f_area","area");
-  bind("f_inspDate","inspDate");bind("f_inspector","inspector");bind("f_remarks","remarks");bindNov(cur);bindInsp(cur);bind("f_kind","kind");bind("f_stage","stage");
+  bind("f_inspDate","inspDate");bind("f_inspector","inspector");bind("f_remarks","remarks");bindNov(cur);bindFieldVisitPlan(cur);bindInsp(cur);bind("f_kind","kind");bind("f_stage","stage");
   const b=$("#f_brgy");b.onchange=()=>{cur.brgy=b.value;cur.brgyAuto=false;renderMatches()};
   const st=$("#f_status");if(st)st.onchange=()=>{cur.status=st.value;cur.manualPermit=st.value==="permit";renderForm()};
   const mn=$("#f_manual");if(mn)mn.onchange=()=>{const val=mn.value.trim();const hit=regByNo(val);cur.permitNo=val;if(hit){renderForm()}else if(val){cur.manualPermit=true;cur.status="permit";renderForm()}};
@@ -4283,7 +4297,7 @@ async function savePin(){
   cur.updated=new Date().toISOString(); cur.status=statusOf(cur)==="assessed"?"assessed":cur.permitNo&&regByNo(cur.permitNo)?"permit":cur.status;
   try{await DB.put(cur)}catch(e){toast("Not saved: "+e.message);return}audit("save-pin",cur.owner||cur.permitNo||"",STATUS[statusOf(cur)]);
   const i=pins.findIndex(p=>p.id===cur.id); if(i>=0)pins[i]=cur; else pins.push(cur);
-  toast("Saved"); const id=cur.id; closeForm(); drawPins(); setTimeout(()=>markers[id]&&markers[id].openPopup(),50);
+  toast("Saved"); const id=cur.id; closeForm(); drawPins(); alertsRefresh(); setTimeout(()=>markers[id]&&markers[id].openPopup(),50);
 }
 function closeForm(){cur=null;confirmDel=false;if(draftMarker){map.removeLayer(draftMarker);draftMarker=null}tab("pins")}
 
@@ -4331,6 +4345,12 @@ function novFieldset(cur){const n=novInfo(cur);const fu=cur.followups||[];
    ${statusOf(cur)==="permit"&&cur.comply!=="complied"?`<div class="row" style="gap:8px;font-size:12.5px"><span>This structure already has a building permit.</span><button class="btn small primary" id="novDone">Mark as complied</button></div>`:""}
    <div class="row" style="gap:6px"><button class="btn small primary" id="ltGeo" type="button">📷 NOV photo (geotagged)</button><button class="btn small" id="ltNov">Print NOV letter</button><button class="btn small" id="ltWso">Print Work Stoppage Order</button></div>
    ${novStepsHtml(cur)}
+   <div class="fa-plan"><b style="font-size:12px">Internal NOV follow-up assignment</b>
+    <div class="fa-note">Internal scheduling only. The NOV compliance deadline above remains a separate officially recorded date; this does not issue a notice or order.</div>
+    <label class="f"><span>Next internal action</span><select id="nvPlanAction"><option value="">— Not scheduled —</option>${["Follow-up inspection","Review compliance documents","Contact/serve notice","Re-inspection","For Building Official review","Other"].map(t=>`<option ${cur.novNextTask===t?"selected":""}>${esc(t)}</option>`).join("")}</select></label>
+    <div class="row"><label class="f"><span>Target date</span><input type="date" id="nvPlanDate" value="${esc(cur.novNextDate||"")}"></label><label class="f"><span>Assigned staff</span><input id="nvPlanBy" maxlength="100" value="${esc(cur.novAssignee||"")}" placeholder="Inspector / staff"></label></div>
+    <span class="fa-note">Press the pin's Save button after editing. Completed legal actions must still be logged under Follow-ups.</span>
+   </div>
    <div class="row"><label class="row" style="gap:6px"><input type="checkbox" id="f_wso" style="width:auto" ${cur.wso?"checked":""}> Work Stoppage Order</label>
      <input id="f_wsoDate" type="date" value="${esc(cur.wsoDate||"")}" style="flex:1 1 140px" aria-label="WSO date"></div>
    <div><b style="font-size:12.5px">Follow-ups and remarks</b>
@@ -4342,6 +4362,10 @@ function bindNov(cur){
   const nv=$("#f_nov");if(nv)nv.onchange=()=>{cur.nov=nv.checked;if(cur.nov){if(!cur.novDate)cur.novDate=today();if(!cur.comply)cur.comply="pending"}renderForm()};
   const b=(id,k,re)=>{const el=$("#"+id);if(el)el.addEventListener(el.type==="checkbox"||el.tagName==="SELECT"||el.type==="date"?"change":"input",()=>{cur[k]=el.type==="checkbox"?el.checked:el.value;if(re)renderForm()})};
   b("f_novNo","novNo");b("f_novDate","novDate",1);b("f_novDue","novDue",1);b("f_complyDate","complyDate");b("f_wso","wso");b("f_wsoDate","wsoDate");
+  const na=$("#nvPlanAction"),ndate=$("#nvPlanDate"),nby=$("#nvPlanBy");
+  if(na)na.onchange=()=>{cur.novNextTask=na.value;if(!na.value){cur.novNextDate="";cur.novAssignee="";renderForm()}};
+  if(ndate)ndate.onchange=()=>{cur.novNextDate=ndate.value};
+  if(nby)nby.oninput=()=>{cur.novAssignee=nby.value.slice(0,100)};
   const cp=$("#f_comply");if(cp)cp.onchange=()=>{cur.comply=cp.value;if(cp.value!=="pending"&&!cur.complyDate)cur.complyDate=today();renderForm()};
   document.querySelectorAll("[data-due]").forEach(x=>x.onclick=()=>{cur.novDue=addDays(cur.novDate,+x.dataset.due);renderForm()});
   const ul=$("#f_useLot");if(ul)ul.onclick=()=>{cur.location=parcelLabel(parcelAt(cur.lat,cur.lng)).slice(0,120);renderForm()};
@@ -4365,7 +4389,7 @@ function renderNov(){const v=$("#v-nov");const L=pins.filter(p=>p.nov);
   const F=L.filter(p=>{const n=novInfo(p);if(fs==="overdue"&&!n.overdue)return false;if(fs&&fs!=="overdue"&&n.c!==fs)return false;if(fb&&p.brgy!==fb)return false;
       if(q.length){const hay=toks([p.owner,p.brgy,p.novNo,p.location].join(" ")).join(" ");if(!q.every(t=>hay.includes(t)))return false}return true})
     .sort((a,b)=>{const A=novInfo(a),B=novInfo(b);const ra=A.overdue?0:A.open?1:2,rb=B.overdue?0:B.open?1:2;if(ra!==rb)return ra-rb;return (A.days??9999)-(B.days??9999)||String(b.novDate).localeCompare(String(a.novDate))});
-  v.innerHTML=`<div class="stats">
+  v.innerHTML=`${fieldActionCenterHtml(v)}<h2 class="sec">NOV case register</h2><div class="stats">
      <div class="stat"><b>${st.total}</b><span>With NOV</span></div>
      <div class="stat"><b style="color:var(--bad)">${st.overdue}</b><span>Past deadline</span></div>
      <div class="stat"><b style="color:var(--warn)">${st.pending+st.partial-st.overdue}</b><span>Pending (not yet due)</span></div>
@@ -4384,6 +4408,7 @@ function renderNov(){const v=$("#v-nov");const L=pins.filter(p=>p.nov);
   const re=()=>{v.dataset.q=$("#nvQ").value;v.dataset.fs=$("#nvS").value;v.dataset.fb=$("#nvB").value;const pos=$("#nvQ").selectionStart;renderNov();const q2=$("#nvQ");if(document.activeElement!==q2&&v.dataset.focus==="q"){q2.focus();q2.setSelectionRange(pos,pos)}};
   $("#nvQ").oninput=()=>{v.dataset.focus="q";re()};$("#nvS").onchange=()=>{v.dataset.focus="";re()};$("#nvB").onchange=()=>{v.dataset.focus="";re()};
   v.querySelectorAll("[data-nv]").forEach(x=>x.onclick=()=>openForm(x.dataset.nv));
+  bindFieldActionCenter(v);
   $("#nvCsv").onclick=()=>{if(!L.length)return toast("No NOVs to export");
     const rows=L.map(p=>{const n=novInfo(p);return{owner:p.owner,barangay:p.brgy,location:p.location,nov_no:p.novNo||"",nov_date:p.novDate||"",due_date:p.novDue||"",status:n.label,compliance:COMPLY[n.c],compliance_date:p.complyDate||"",wso:p.wso?"Yes":"",wso_date:p.wsoDate||"",permit_status:STATUS[statusOf(p)],permit_no:p.permitNo||"",
       followups:(p.followups||[]).map(f=>`${f.date} ${f.action}${f.remarks?": "+f.remarks:""}`).join(" | "),lat:p.lat,lng:p.lng}});
@@ -7294,6 +7319,18 @@ async function alertsList(){const L=[],add=(lvl,cat,t,go)=>L.push({lvl,cat,t,go}
   for(const a of APPS){let i;try{i=appInfo(a)}catch(e){continue}if(i.done){if(i.post&&i.post.overdue)add("bad","Applications",`${a.no} ${a.name} — post-requirements overdue (due ${i.post.due})`,()=>openAppById(a.id));continue}
     if(i.over)add("bad","Applications",`${a.no} ${a.name} — over the time limit (${i.wd} of ${i.lim} working days)`,()=>openAppById(a.id));
     else if(i.lim&&!i.wait&&i.wd>=i.lim-1&&!i.missing)add("warn","Applications",`${a.no} ${a.name} — ${i.wd>=i.lim?"last day today":"due tomorrow"} (${i.wd} of ${i.lim} working days)`,()=>openAppById(a.id))}
+  // Field visit / internal NOV reminders. These do not issue legal notices.
+  for(const p of pins){
+    const plan=p.visitPlan;
+    if(plan&&fieldValidISO(plan.date)){
+      const d=daysTo(plan.date);
+      if(d<=7)add(d<0?"bad":"warn","Field inspections",`${p.owner||"(no name)"}, ${p.brgy||""}: ${plan.type||"site visit"} ${d<0?"overdue by "+(-d)+" day(s)":d===0?"scheduled today":"in "+d+" day(s)"} (${plan.date})`,()=>openForm(p.id));
+    }
+    if(p.nov&&["pending","partial"].includes(p.comply||"pending")&&p.novNextTask&&fieldValidISO(p.novNextDate)){
+      const d=daysTo(p.novNextDate);
+      if(d<=7)add(d<0?"bad":"warn","NOV follow-ups",`${p.owner||"(no name)"}, ${p.brgy||""}: ${p.novNextTask} ${d<0?"overdue by "+(-d)+" day(s)":d===0?"today":"in "+d+" day(s)"} (${p.novNextDate})`,()=>openForm(p.id));
+    }
+  }
   let V=[];try{V=validityRows()}catch(e){}const exp=V.filter(x=>x.cls==="s-none").length,chk=V.filter(x=>x.cls==="s-assessed").length;
   if(exp)add("bad","Permit validity",`${exp} building permit(s) not commenced within 1 year — expired (Sec. 307)`,()=>openReport("valid"));
   if(chk)add("warn","Permit validity",`${chk} building permit(s) need a site visit (no record, or no inspection in 120 days)`,()=>openReport("valid"));
@@ -7481,8 +7518,9 @@ async function importLgubpMdf(file){
   return LGUBP.build(T)}
 
 /* ================= Version, What's new, Help and printable user manual ================= */
-const APP_VERSION="1.5.0",APP_BUILD="2026-10-15";
+const APP_VERSION="1.6.0",APP_BUILD="2026-10-15";
 const WHATS_NEW=[
+ ["1.6.0 — 2026-10-15",["NOV tab: Field Action Center with scheduled inspections, NOV internal follow-ups, official deadline review, and annual inspection reviews", "Filters for overdue / today / next 7 days; CSV worklist and printable field schedule", "Pin Form: schedule and assign the next site visit with purpose and history; log actual inspection to close the scheduled visit", "NOV Form: internal next action, target date, and responsible staff, separate from official compliance deadline", "No automatic legal enforcement, inspection certification, or new public Firebase collections. Existing assessment and applicant QR portal remain unchanged"]],
  ["1.5.0 — 2026-10-15",["Opt-in applicant status tracking page via a secret QR/link without login", "Staff-managed publish/update/disable for individual application status", "Published permit verification QR links show registered permit number, type, date, barangay and validity only", "Public Firestore projections are separated from protected internal OBO records; reprint issued permits to use the live verification QR", "The applicant portal does not allow searching by name, phone number, or enumerable permit numbers"]],
  ["1.4.0 — 2026-10-15",["Applications: guided workflow with next step, assigned staff, internal follow-up date and processing history", "Document verification matrix: Received / Verified / Needs correction, optional applicability and correction remarks; links to existing checkboxes", "Print internal processing and document-verification report; dashboard includes next action and assigned staff", "Specialized tower and net-metering deadlines remain in their existing modules. No automatic permit issuing or payment confirmation."]],
  ["1.3.1 — 2026-10-15",["Assessment → Saved: delete an accidental UNPOSTED draft with a required reason. The final unused control number can be reclaimed safely; paid and posted records are protected."]],
@@ -8129,6 +8167,83 @@ function renderLetter(){const c=LT;const f=(k,l,t)=>`<label class="f"><span>${l}
   const prev=()=>{$("#ltPrev").innerHTML=letterHtml(c);hydratePhotos($("#ltPrev"))};prev();
   $("#ltCtl").querySelectorAll("[data-lt]").forEach(x=>x.addEventListener(x.type==="checkbox"||x.type==="date"?"change":"input",()=>{c[x.dataset.lt]=x.type==="checkbox"?x.checked:x.value;prev()}))}
 
+/* ================= v1.6 Field inspection & compliance planner ================= */
+const FIELD_PLAN_TYPES=["Progress inspection","Annual inspection","Final inspection (for occupancy)","Complaint / verification","Re-inspection"];
+const FIELD_ACTION_FILTERS={all:"All active",late:"Overdue",today:"Today",week:"Next 7 days",unscheduled:"Annual due"};
+const fieldValidISO=d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d||""))&&!Number.isNaN(new Date(d+"T00:00:00").getTime());
+function fieldVisitPlanHtml(p){const x=p.visitPlan||{},L=(p.visitPlanHistory||[]).slice(-4).reverse();
+ return `<fieldset><legend>Field inspection schedule · v1.6</legend>
+  <div class="fa-note">Plan the next site visit for this geotagged structure. Inspection findings must still be recorded using the Inspection log/checklist below. Scheduling does not certify compliance.</div>
+  ${x.date?`<div class="chip ${x.date<today()?"s-none":x.date===today()?"s-verify":"s-assessed"}">Next visit: ${esc(x.date)} · ${esc(x.type||"Inspection")}</div>`:""}
+  <div class="fa-plan"><div class="row"><label class="f"><span>Visit date</span><input type="date" id="fvDate" value="${esc(x.date||"")}"></label>
+    <label class="f"><span>Visit type</span><select id="fvType">${FIELD_PLAN_TYPES.map(t=>`<option ${x.type===t?"selected":""}>${esc(t)}</option>`).join("")}</select></label></div>
+    <label class="f"><span>Assigned inspector</span><input id="fvBy" maxlength="100" value="${esc(x.by||p.inspector||USER_NAME||"")}" placeholder="Inspector name"></label>
+    <label class="f"><span>Purpose / preparation</span><textarea id="fvNote" rows="2" maxlength="500" placeholder="Scope of visit, documents to bring, etc.">${esc(x.note||"")}</textarea></label>
+    <div class="row"><button class="btn small primary" type="button" id="fvSet">Schedule / update</button>${x.date?`<button class="btn small danger" type="button" id="fvCancel">Cancel visit</button>`:""}</div>
+    <span class="fa-note">After scheduling or cancelling, press the pin's main <b>Save</b> button to synchronize the change. Record actual findings under Inspections.</span>
+  </div>
+  ${L.length?`<details><summary style="cursor:pointer;font-size:12px">Schedule history (${(p.visitPlanHistory||[]).length})</summary><div style="font-size:11.5px">${L.map(h=>`<div>${esc(h.at||"")} · ${esc(h.action||"")} · ${esc(h.date||"")} · ${esc(h.by||"")}</div>`).join("")}</div></details>`:""}
+ </fieldset>`}
+function fieldPlanHistory(p,action,plan){const h=(p.visitPlanHistory=p.visitPlanHistory||[]);h.push({at:new Date().toISOString(),action,date:plan?.date||"",by:USER_NAME||plan?.by||""});if(h.length>100)h.splice(0,h.length-100)}
+function bindFieldVisitPlan(p){const el=$("#fvSet");if(el)el.onclick=()=>{const d=$("#fvDate").value,type=$("#fvType").value,by=$("#fvBy").value.trim(),note=$("#fvNote").value.trim();
+    if(!fieldValidISO(d))return toast("Choose a valid visit date");
+    if(!by)return toast("Enter the assigned inspector");
+    const old=p.visitPlan||null;const next={date:d,type,by:by.slice(0,100),note:note.slice(0,500),plannedAt:new Date().toISOString()};
+    p.visitPlan=next;fieldPlanHistory(p,old?"Rescheduled":"Scheduled",next);renderForm();toast("Schedule prepared — press Save to sync")};
+  const c=$("#fvCancel");if(c)c.onclick=()=>{if(!confirm("Cancel the planned site visit? The inspection records and NOV will not be deleted."))return;
+    fieldPlanHistory(p,"Visit cancelled",p.visitPlan);p.visitPlan=null;renderForm();toast("Cancelled in this form — press Save to sync")};}
+function fieldClosePlannedVisit(p,x){const q=p.visitPlan;
+  if(!q||!fieldValidISO(q.date)||!fieldValidISO(x.date)||x.date<q.date)return;
+  fieldPlanHistory(p,"Visit performed (inspection logged)",q);p.visitPlan=null;
+}
+function fieldActionRows(){const R=[],T=today();
+  for(const p of pins){const common={id:p.id,owner:p.owner||"Unnamed owner",brgy:p.brgy||"",location:p.location||"",permit:p.permitNo||""};
+    const s=p.visitPlan;
+    if(s&&fieldValidISO(s.date))R.push({...common,kind:"inspection",label:s.type||"Site inspection",date:s.date,assigned:s.by||"",detail:s.note||"",priority:s.date<T?0:s.date===T?1:2});
+    if(p.nov&&["pending","partial"].includes(p.comply||"pending")){
+      if(fieldValidISO(p.novNextDate)&&p.novNextTask)R.push({...common,kind:"nov-followup",label:p.novNextTask,date:p.novNextDate,assigned:p.novAssignee||p.inspector||"",detail:`Internal NOV follow-up · ${p.novNo||"no reference"}`,priority:p.novNextDate<T?0:p.novNextDate===T?1:2});
+      if(fieldValidISO(p.novDue))R.push({...common,kind:"nov-deadline",label:"Review NOV compliance deadline",date:p.novDue,assigned:p.novAssignee||p.inspector||"",detail:`Official NOV deadline · ${p.novNo||"no reference"}. Verify service and case status before taking action.`,priority:p.novDue<T?0:p.novDue===T?1:2});
+    }
+    if(statusOf(p)==="permit"&&!s?.date){const L=(p.insp||[]).filter(x=>/Annual|Final/.test(x.type));const last=L.map(x=>x.date).filter(fieldValidISO).sort().pop();
+      if(!last||addDays(last,365)<=T)R.push({...common,kind:"annual",label:"Annual inspection review",date:"",assigned:p.inspector||"",detail:last?`Last inspection ${last}; confirm annual schedule`:`No annual/final inspection logged; check requirement`,priority:3});
+    }
+  }
+  return R.sort((a,b)=>a.priority-b.priority||(a.date||"9999").localeCompare(b.date||"9999")||a.brgy.localeCompare(b.brgy)||a.owner.localeCompare(b.owner));
+}
+function fieldFilteredRows(v){const T=today(),end=addDays(T,7),f=v.dataset.faFilter||"all",q=toks(v.dataset.faQuery||"");return fieldActionRows().filter(r=>{
+  if(f==="late"&&!(r.date&&r.date<T))return false;
+  if(f==="today"&&r.date!==T)return false;
+  if(f==="week"&&!(r.date&&r.date>=T&&r.date<=end))return false;
+  if(f==="unscheduled"&&r.kind!=="annual")return false;
+  if(q.length){const h=toks([r.owner,r.brgy,r.location,r.permit,r.label,r.assigned,r.detail].join(" ")).join(" ");if(!q.every(t=>h.includes(t)))return false}
+  return true;
+ })}
+function fieldActionCenterHtml(v){const all=fieldActionRows(),L=fieldFilteredRows(v),T=today(),cntLate=all.filter(r=>r.date&&r.date<T).length,cntToday=all.filter(r=>r.date===T).length,cntWeek=all.filter(r=>r.date&&r.date>=T&&r.date<=addDays(T,7)).length,cntAnnual=all.filter(r=>r.kind==="annual").length;
+ return `<section style="display:flex;flex-direction:column;gap:8px"><h2 class="sec" style="margin-top:2px">Field Action Center · v1.6</h2>
+  <div class="fa-note">Combined worklist for scheduled site visits, open NOV follow-ups, recorded NOV deadlines, and annual inspections requiring review. Deadlines are shown from saved records only; no legal action is issued automatically.</div>
+  <div class="stats"><div class="stat"><b style="color:var(--bad)">${cntLate}</b><span>Overdue tasks</span></div><div class="stat"><b>${cntToday}</b><span>Due today</span></div><div class="stat"><b style="color:var(--warn)">${cntWeek}</b><span>Next 7 days</span></div><div class="stat"><b>${cntAnnual}</b><span>Annual review needed</span></div></div>
+  <div class="row"><select id="faFilter" aria-label="Task filter" style="flex:1 1 145px">${Object.entries(FIELD_ACTION_FILTERS).map(([k,t])=>`<option value="${k}" ${(v.dataset.faFilter||"all")===k?"selected":""}>${esc(t)}</option>`).join("")}</select>
+   <input id="faQuery" type="search" aria-label="Search field tasks" placeholder="Search owner, barangay, inspector" value="${esc(v.dataset.faQuery||"")}" style="flex:1 1 220px"></div>
+  <div class="row"><button class="btn small" id="faCsv">Export worklist (CSV)</button><button class="btn small" id="faPrint">Print field schedule</button></div>
+  ${!L.length?`<div class="empty">No field tasks match this filter. To schedule, open any site pin → Form → Field inspection schedule.</div>`:
+   `<div class="fa-board">${L.slice(0,100).map(r=>`<div class="fa-task ${r.date&&r.date<T?"due":r.date&&r.date<=addDays(T,7)?"soon":""}"><div class="fa-head"><b>${esc(r.label)}</b><span class="chip ${!r.date?"s-assessed":r.date<T?"s-none":r.date===T?"s-verify":"s-permit"}">${esc(r.date||"Needs scheduling")}</span></div>
+    <div style="font-size:12px;font-weight:600">${esc(r.owner)}</div><div class="fa-meta">${esc([r.brgy,r.location,r.permit].filter(Boolean).join(" · "))}</div>
+    <div class="fa-meta">${r.assigned?"Assigned: "+esc(r.assigned)+" · ":"Unassigned · "}${esc(r.detail)}</div>
+    <div><button class="btn small" data-fa-open="${esc(r.id)}">Open site record</button></div></div>`).join("")}</div>${L.length>100?`<p class="fa-note">Showing first 100 of ${L.length}. Export CSV for the full filtered list.</p>`:""}`}
+  <div class="fa-warning">NOV deadlines and annual reviews are reminders only. Confirm actual receipt/service dates, applicable requirements, inspection findings, and authorization before issuing official notices, fines or certifications.</div></section><hr style="width:100%;border:0;border-top:1px solid var(--line);margin:8px 0">`}
+function fieldPrintHtml(R){return paginate(R,16,rptHead("FIELD INSPECTION & COMPLIANCE WORKLIST","Internal schedule · "+longDate(today())),
+ `<tr><th>#</th><th style="text-align:left">Target / type</th><th style="text-align:left">Site / barangay</th><th style="text-align:left">Assigned staff</th><th style="text-align:left">Next action / notes</th></tr>`,
+ (r,i)=>`<tr><td>${i+1}</td><td class="l">${esc(r.date||"Unscheduled")}<br>${esc(r.label)}</td><td class="l">${esc(r.owner)}<br>${esc(r.brgy)}</td><td class="l">${esc(r.assigned||"—")}</td><td class="l">${esc(r.detail||"—")}</td></tr>`,"",`<div class="note" style="margin-top:12px">Internal worklist, not proof of inspection, NOV service, or compliance. Verify each case before official action.</div>${privacyHtml(7)}`)}
+function bindFieldActionCenter(v){const f=v.querySelector("#faFilter"),q=v.querySelector("#faQuery");
+ if(f)f.onchange=()=>{v.dataset.faFilter=f.value;renderNov()};
+ if(q)q.onchange=()=>{v.dataset.faQuery=q.value;renderNov()};
+ v.querySelectorAll("[data-fa-open]").forEach(b=>b.onclick=()=>openForm(b.dataset.faOpen));
+ const c=v.querySelector("#faCsv");if(c)c.onclick=()=>{const R=fieldFilteredRows(v);if(!R.length)return toast("No tasks to export");
+  const safe=s=>{const v=String(s||"");return /^[\s]*[=+@\-]/.test(v)?"\u0027"+v:v};
+  const csv=csvOf(R.map(r=>({target_date:r.date||"",task_type:r.kind,action:safe(r.label),owner:safe(r.owner),barangay:safe(r.brgy),location:safe(r.location),permit_no:safe(r.permit),assigned_staff:safe(r.assigned),remarks:safe(r.detail)})));download(`field-worklist-${stamp()}.csv`,csv,"text/csv")};
+ const p=v.querySelector("#faPrint");if(p)p.onclick=()=>printReport(fieldPrintHtml(fieldFilteredRows(v)));
+}
+
 /* ================= Inspection log (per pin) ================= */
 const INSP_TYPES=["Annual inspection","Progress inspection","Final inspection (for occupancy)","Complaint / verification","Re-inspection"];
 function inspFieldset(cur){const L=cur.insp||[];return`<fieldset><legend>Inspections</legend>
@@ -8136,10 +8251,10 @@ function inspFieldset(cur){const L=cur.insp||[];return`<fieldset><legend>Inspect
   <div class="row"><input id="in_date" type="date" value="${today()}" style="flex:0 1 150px" aria-label="Date"><select id="in_type" style="flex:1 1 180px" aria-label="Type">${INSP_TYPES.map(t=>`<option>${t}</option>`).join("")}</select></div>
   <div class="row"><select id="in_res" style="flex:0 1 170px" aria-label="Result"><option>Satisfactory</option><option>With deficiencies</option><option>Not accessible</option></select><input id="in_rem" placeholder="Findings / remarks" style="flex:1 1 180px"><button class="btn small primary" id="in_add">Add</button></div>
   <div class="row"><button class="btn small" id="in_chk">Checklist inspection (with report)</button><button class="btn small" type="button" onclick="openNbcRef('')">📖 NBC reference</button>${statusOf(cur)==="permit"?`<button class="btn small" id="in_cai">Certificate of Annual Inspection</button>`:""}</div></fieldset>`}
-function bindInsp(cur){const a=$("#in_add");if(a)a.onclick=()=>{const x={id:uid(),date:$("#in_date").value||today(),type:$("#in_type").value,result:$("#in_res").value,remarks:$("#in_rem").value.trim(),by:cur.inspector||USER_NAME||""};
-  (cur.insp=cur.insp||[]).push(x);if(!cur.inspDate||x.date>cur.inspDate)cur.inspDate=x.date;audit("inspect",cur.owner||cur.permitNo||"",`${x.type}: ${x.result}`);renderForm();toast("Inspection added — press Save")};
+function bindInsp(cur){const a=$("#in_add");if(a)a.onclick=()=>{const x={id:uid(),date:$("#in_date").value||today(),type:$("#in_type").value,result:$("#in_res").value,remarks:$("#in_rem").value.trim(),by:cur.inspector||cur.visitPlan?.by||USER_NAME||""};
+  fieldClosePlannedVisit(cur,x);(cur.insp=cur.insp||[]).push(x);if(!cur.inspDate||x.date>cur.inspDate)cur.inspDate=x.date;audit("inspect",cur.owner||cur.permitNo||"",`${x.type}: ${x.result}`);renderForm();toast("Inspection added — press Save")};
   document.querySelectorAll("[data-rmi]").forEach(b=>b.onclick=()=>{cur.insp=(cur.insp||[]).filter(x=>x.id!==b.dataset.rmi);renderForm()});
-  const ck=$("#in_chk");if(ck)ck.onclick=()=>openStageInsp(cur,x=>{renderForm();toast("Inspection added — press Save, then Print report")});
+  const ck=$("#in_chk");if(ck)ck.onclick=()=>openStageInsp(cur,x=>{fieldClosePlannedVisit(cur,x);renderForm();toast("Inspection added — press Save, then Print report")});
   const ci=$("#in_cai");if(ci)ci.onclick=async()=>{if(curIsNew||!pinById(cur.id))return toast("Save the pin first");await savePin();openCai(pinById(cur.id))};
   document.querySelectorAll("[data-ipr]").forEach(b=>b.onclick=()=>{const x=(cur.insp||[]).find(y=>y.id===b.dataset.ipr);if(x)printInspReport(cur,x)})}
 function inspDueRows(){return pins.filter(p=>statusOf(p)==="permit").map(p=>{const L=(p.insp||[]).filter(x=>/Annual|Final/.test(x.type));const last=L.map(x=>x.date).sort().pop()||"";
