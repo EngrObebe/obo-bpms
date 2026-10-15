@@ -1,14 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only OBO staff accounts listed here can read or write. Add each staff email in lowercase.
+    // Approved OBO accounts. Keep this list updated when onboarding/removing staff.
     function isStaff() {
       return request.auth != null && request.auth.token.email in [
         'michaelvincentestradaobena2019@gmail.com'
       ];
     }
-    match /{document=**} {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'michaelvincentestradaobena2019@gmail.com';
+    }
+    // Existing shared-record buckets, including assessments and audit log.
+    match /obo/{bucket} {
+      allow read, create: if isStaff();
+      // Removal of individual assessment bucket fields requires the Building Official.
+      allow update: if isStaff() && (
+        !bucket.matches('a-[0-9]+') || isAdmin() ||
+        !('items' in resource.data) || !('items' in request.resource.data) ||
+        request.resource.data.items.diff(resource.data.items).removedKeys().size() == 0
+      );
+      allow delete: if isAdmin();
+    }
+    match /photos/{photoId} {
       allow read, write: if isStaff();
+    }
+    // Atomic control-number allocation / recovery. In this installation,
+    // the authorized Building Official is currently the sole approved staff account.
+    match /assessmentControl/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.high is int;
+      allow update: if isStaff() && request.resource.data.high is int && (
+        request.resource.data.high >= resource.data.high || isAdmin()
+      );
+      allow delete: if false;
     }
   }
 }

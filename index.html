@@ -1262,7 +1262,7 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
   </div>
 </div>
 <div id="calcList" class="calc" hidden role="dialog" aria-label="Saved assessments">
-  <div class="calc-top"><div class="calc-title"><b>Saved assessments</b></div><div class="row"><button class="btn" id="clClose">✕</button></div></div>
+  <div class="calc-top"><div class="calc-title"><b>Saved assessments</b><span>Next available control no.: <strong id="clNextCtrl">—</strong></span></div><div class="row"><button class="btn" id="clClose">✕</button></div></div>
   <div style="padding:16px;overflow:auto;display:flex;flex-direction:column;gap:10px"><input id="clQ" type="search" placeholder="Search: name, project, barangay" aria-label="Search"><div id="clItems"></div></div>
 </div>
 <div id="opEd" class="calc" hidden role="dialog" aria-label="Order of Payment">
@@ -3917,7 +3917,7 @@ const DB = (()=>{let dbp;const mem={pins:new Map(),meta:new Map(),assess:new Map
     aPut:p=>tx("assess","readwrite",(s,m)=>m?m.set(p.id,p):s.put(p)),
     aDel:id=>tx("assess","readwrite",(s,m)=>m?m.delete(id):s.delete(id))
   };})();
-const ADB={all:async()=>{const a=await DB.aAll();assessCache=a||[];return assessCache},put:async a=>{await DB.aPut(a);const i=assessCache.findIndex(x=>x.id===a.id);if(i>=0)assessCache[i]=a;else assessCache.push(a)}};
+const ADB={all:async()=>{const a=await DB.aAll();assessCache=a||[];return assessCache},put:async a=>{await DB.aPut(a);const i=assessCache.findIndex(x=>x.id===a.id);if(i>=0)assessCache[i]=a;else assessCache.push(a)},del:async id=>{await DB.aDel(id);assessCache=assessCache.filter(a=>a.id!==id)}};
 let assessCache=[];
 const latestAssess=pinId=>assessCache.filter(a=>a.pinId===pinId).sort((a,b)=>(b.updated||"").localeCompare(a.updated||""))[0];
 /* ---------- Shared data file: change stamping + two-way merge ---------- */
@@ -4619,8 +4619,9 @@ function renderCalc(){
 }
 function renderCalcKeepFocus(){const st=$("#cForm").scrollTop;renderCalc();$("#cForm").scrollTop=st}
 const LGUBP_LAST_CTRL=371; /* last ass_ctrlno in the BPFADRU database of 13 Oct 2026, 3:44 PM */
+let CTRL_CLOUD_HIGH=0;
 let CTRL_BASE=LGUBP_LAST_CTRL;(async()=>{try{const v=await DB.get("ctrlBase");if(v)CTRL_BASE=Math.max(+v,LGUBP_LAST_CTRL)}catch(e){}})();
-function ctrlMax(){const n=x=>/^\d+$/.test(String(x||"").trim())?+x:0;return Math.max(CTRL_BASE,...assessCache.map(a=>n(a.ctrl)),...REG.map(r=>n(r.ass)),...REG.flatMap(r=>(r.assRevs||[]).map(n)))}
+function ctrlMax(){const n=x=>/^\d+$/.test(String(x||"").trim())?+x:0;return Math.max(CTRL_BASE,CTRL_CLOUD_HIGH,...assessCache.map(a=>n(a.ctrl)),...REG.map(r=>n(r.ass)),...REG.flatMap(r=>(r.assRevs||[]).map(n)))}
 /* Avoid duplicate / wasted control numbers (LGU-BP issues a new no. on every re-save) */
 const normS=x=>String(x||"").toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();
 async function ctrlGuard(){
@@ -4629,7 +4630,7 @@ async function ctrlGuard(){
   const same=(f,g,p)=>normS(f)===fam&&(!fst||normS(g).startsWith(fst))&&(!prj||!p||normS(p)===prj);
   const c=String(A.ctrl||"").trim();
   if(c){ /* manual number: refuse clashes with a different application */
-    const o=assessCache.find(a=>a.id!==A.id&&String(a.ctrl||"").trim()===c&&!same(a.family,a.first,a.project));
+    const o=assessCache.find(a=>a.id!==A.id&&String(a.ctrl||"").trim()===c);
     if(o){alert(`Control no. ${c} is already used by ${o.family}${o.first?", "+o.first:""} (${o.project||"no project"}).\nClear the field to get the next number (${ctrlMax()+1}).`);return false}
     const r=REG.find(r=>(r.ass===c||(r.assRevs||[]).includes(c))&&normS(r.family||r.name.split(",")[0])!==fam);
     if(r&&!confirm(`Control no. ${c} was already used in LGU-BP for ${r.name} (${r.no}).\nSave with this number anyway?`))return false;
@@ -4643,17 +4644,90 @@ async function ctrlGuard(){
   const r=REG.find(r=>r.k==="assessed"&&r.ass&&normS(r.family||r.name.split(",")[0])===fam&&(!fst||normS(r.first||r.name.split(",")[1]).startsWith(fst)));
   if(r&&confirm(`LGU-BP already assessed ${r.name} under control no. ${r.ass}${r.project?" ("+r.project+")":""}.\n\nOK = continue with no. ${r.ass}\nCancel = new number (${ctrlMax()+1})`))A.ctrl=String(r.ass);
   return true}
-async function nextCtrl(){if(typeof SYNC!=="undefined"&&SYNC.handle&&SYNC.ok)await syncNow(true);try{await ADB.all()}catch(e){}try{const v=await DB.get("ctrlBase");if(v)CTRL_BASE=Math.max(+v,LGUBP_LAST_CTRL)}catch(e){}return String(ctrlMax()+1)}
+async function nextCtrl(a){
+  if(CLOUD.on){
+    if(!CLOUD.user||!CLOUD.ready||!SYNC.ok)throw Error("Cloud connection is required to assign a new control number.");
+    if(!a)throw Error("Assessment data is required for cloud numbering.");
+    return cloudClaimAssessment(a);
+  }
+  if(SYNC.handle&&SYNC.ok)await syncNow(true);
+  try{await ADB.all()}catch(e){}
+  try{const v=await DB.get("ctrlBase");if(v)CTRL_BASE=Math.max(+v,LGUBP_LAST_CTRL)}catch(e){}
+  return String(ctrlMax()+1);
+}
 $("#cSave").onclick=async()=>{if(!A.family.trim()){toast("Enter the applicant's surname");calcSec="app";renderCalc();return}
   if(!(await ctrlGuard()))return;
-  if(!A.ctrl)A.ctrl=await nextCtrl();A.updated=new Date().toISOString();A.total=opLines().total;
-  try{await ADB.put(JSON.parse(JSON.stringify(A)));toast("Assessment saved "+A.ctrl);audit("save-assess",A.ctrl,[A.family,A.first].filter(Boolean).join(", "));if(A.pinId){drawPins()}renderCalc()}catch(e){toast("Not saved: "+e.message)}};
+  A.updated=nowISO();A.total=opLines().total;
+  try{
+    const old=assessCache.find(x=>x.id===A.id);
+    if(CLOUD.on&&(!CLOUD.ready||!CLOUD.user||!SYNC.ok))throw Error("Internet/cloud connection required for saving an assessment.");
+    if(!A.ctrl)A.ctrl=await nextCtrl(A);
+    else if(CLOUD.on&&(!old||String(old.ctrl||"")!==String(A.ctrl)))await cloudClaimAssessment(A);
+    await ADB.put(JSON.parse(JSON.stringify(A)));
+    toast("Assessment saved "+A.ctrl);await audit("save-assess",A.ctrl,[A.family,A.first].filter(Boolean).join(", "));
+    if(A.pinId)drawPins();renderCalc();
+  }catch(e){alert("Assessment save not completed: "+e.message+"\nIf the cloud record was created, use Sync now before retrying.")}};
 /* saved list */
 $("#cList").onclick=()=>{$("#calcList").hidden=false;renderCalcList()};$("#clClose").onclick=()=>$("#calcList").hidden=true;$("#clQ").oninput=renderCalcList;
 async function renderCalcList(){const all=(await ADB.all().catch(()=>[])).sort((a,b)=>(b.updated||"").localeCompare(a.updated||""));const q=toks($("#clQ").value);
   const L_=all.filter(a=>!q.length||q.every(t=>toks([a.family,a.first,a.project,a.brgy,a.ctrl].join(" ")).join(" ").includes(t)));
-  $("#clItems").innerHTML=L_.length?`<div class="list">${L_.map(a=>`<div class="item" data-a="${a.id}"><div class="t"><b>${esc(a.family)}, ${esc(a.first)}</b><span class="mono">${peso(a.total)}</span></div><div class="meta"><span class="mono">${esc(a.ctrl)}</span> · ${esc(a.date)} · ${esc(a.brgy||"")} · ${esc(a.project||"")}</div></div>`).join("")}</div>`:`<div class="empty">No saved assessments yet.</div>`;
-  $("#clItems").querySelectorAll("[data-a]").forEach(x=>x.onclick=()=>{const a=all.find(y=>y.id===x.dataset.a);$("#calcList").hidden=true;openCalc(JSON.parse(JSON.stringify(a)))})}
+  if($("#clNextCtrl"))$("#clNextCtrl").textContent=String(ctrlMax()+1);
+  $("#clItems").innerHTML=L_.length?`<div class="list">${L_.map(a=>`<div class="item" data-a="${esc(a.id)}"><div class="t"><b>${esc(a.family)}, ${esc(a.first)}</b><span class="mono">${peso(a.total)}</span></div><div class="meta"><span class="mono">${esc(a.ctrl)}</span> · ${esc(a.date)} · ${esc(a.brgy||"")} · ${esc(a.project||"")}</div><div class="row" style="justify-content:space-between;margin-top:5px"><span class="chip ${a.posted?"s-permit":"s-verify"}">${a.posted?"Posted":"Saved draft"}</span>${draftDeleteError(a)?`<span class="muted" style="font-size:11px">${esc(draftDeleteError(a))}</span>`:`<button class="btn small danger" data-delete-assess="${esc(a.id)}" title="Delete this unposted draft and recover the latest control number when safe">Delete draft</button>`}</div></div>`).join("")}</div>`:`<div class="empty">No saved assessments yet.</div>`;
+  $("#clItems").querySelectorAll("[data-a]").forEach(x=>x.onclick=e=>{if(e.target.closest("[data-delete-assess]"))return;const a=all.find(y=>y.id===x.dataset.a);if(!a)return;$("#calcList").hidden=true;openCalc(JSON.parse(JSON.stringify(a)))});
+  $("#clItems").querySelectorAll("[data-delete-assess]").forEach(b=>b.onclick=async e=>{e.preventDefault();e.stopPropagation();const a=all.find(x=>x.id===b.dataset.deleteAssess);if(!a)return;b.disabled=true;try{await deleteDraftAssessment(a)}finally{if(b.isConnected)b.disabled=false}});
+}
+/* ---- Accidental saved draft deletion (never delete paid or posted records) ---- */
+const ASSESS_ADMIN_EMAIL="michaelvincentestradaobena2019@gmail.com";
+function draftDeleteError(a){
+  if(!a)return "Record missing";
+  if(a.posted||a.permitNo)return "Posted; cannot delete";
+  if(String(a.orNo||"").trim()||a.datePaid)return "Payment recorded; cannot delete";
+  const ctrl=String(a.ctrl||"").trim();
+  if(ctrl&&(REG.some(r=>String(r.ass||"").trim()===ctrl||(r.assRevs||[]).some(v=>String(v).trim()===ctrl))||
+    postedReg.some(r=>String(r.ass||"").trim()===ctrl)))return "Referenced in permit register";
+  if(APPS.some(ap=>(ap.assessId===a.id||ap.id===a.appId)&&(ap.permitNo||ap.paid||ap.assessed||ap.released)))return "Linked application has official activity";
+  return "";
+}
+function authorizedDraftDelete(){
+  // Hosted OBO: only the Building Official's Firebase account may delete drafts.
+  return !CLOUD.on || !!(CLOUD.user&&String(CLOUD.user.email||"").toLowerCase()===ASSESS_ADMIN_EMAIL);
+}
+async function deleteDraftAssessment(selected){
+  if(!authorizedDraftDelete())return alert("Only the authorized Building Official can delete saved assessments.");
+  if(CLOUD.on&&(!CLOUD.user||!CLOUD.ready||!SYNC.ok))return alert("Connect to the office cloud before deleting an assessment.");
+  if(CLOUD.on&&!(await syncNow(true)))return alert("Cloud sync failed. No assessment was deleted.");
+  const a=(await ADB.all()).find(x=>x.id===selected.id);
+  if(!a)return alert("This draft no longer exists. Refresh the list.");
+  const problem=draftDeleteError(a);if(problem)return alert("Deletion blocked: "+problem);
+  const who=[a.family,a.first].filter(Boolean).join(", ");
+  const reason=prompt(`DELETE SAVED DRAFT ONLY\n\nControl no.: ${a.ctrl||"(none)"}\nApplicant: ${who}\nProject: ${a.project||"(none)"}\n\nReason for deletion:`,"Accidentally saved / duplicate draft");
+  if(reason===null)return;
+  if(!reason.trim())return alert("A reason is required.");
+  if(!confirm(`Permanently delete the UNPOSTED draft for ${who}, control no. ${a.ctrl}?\n\nThe last number will be recovered ONLY if no later number was assigned. The deletion will be logged.\n\nContinue?`))return;
+  try{
+    const linked=APPS.filter(ap=>ap.assessId===a.id||ap.id===a.appId);
+    const ev={id:uid(),t:nowISO(),by:USER_NAME||CLOUD.user?.email||"(unnamed)",a:"delete-assess",r:String(a.ctrl||"(none)"),d:`${who} | ${reason.trim().slice(0,90)}`};
+    let reclaimed=false;
+    if(CLOUD.on){reclaimed=await cloudDeleteAssessmentTx(a,reason.trim(),linked,ev)}
+    // Keep a tombstone so other devices cannot resurrect the deleted record on sync.
+    await ADB.del(a.id);
+    for(const ap of linked){if(ap.assessId===a.id){delete ap.assessId;ap.updated=nowISO()}}
+    if(linked.length)await saveApps();
+    if(CLOUD.on){
+      // The server transaction already wrote the tombstone; do not permit an old cache to revive it.
+      await syncNow(true);
+    }else{
+      reclaimed=String(a.ctrl||"").trim()!==""&&Number(a.ctrl)===ctrlMax()+1;
+    }
+    ev.d+=` | ${reclaimed?"last number recovered":"number retained"}`;
+    if(CLOUD.on){const logs=(await DB.get("audit").catch(()=>[]))||[];if(!logs.some(x=>x.id===ev.id))logs.push(ev);await DB.set("audit",logs)}
+    else await audit("delete-assess",ev.r,ev.d);
+    if(A&&A.id===a.id)closeCalc();
+    if(cur&&cur.id===a.pinId)drawPins();
+    await renderCalcList();
+    toast(`Draft deleted: ${a.ctrl}${reclaimed?" — control no. available again":" — number not reused"}`);
+  }catch(e){alert("Deletion failed: "+e.message+"\nPlease sync and check the record before retrying.");await renderCalcList()}
+}
 /* ---------- Order of Payment: stage, editable lines, LGU-BP style print ---------- */
 const BPLOGO="data:image/png;base64,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";
 const DEFAULT_ASSESSORS=[{name:"ENGR. MICHAEL DAVID R. SALAZAR",title:"Engineer I / Civil Engineer"}];
@@ -5045,7 +5119,7 @@ async function doPost(){if(postProblems().length)return;if(!await postLock())ret
 async function doPost0(){if(SYNC.handle&&SYNC.ok)await syncNow(true);const P=postPreview();if(postProblems().length)return;
   if(REG.some(r=>r.type===P.pt&&r.no===`${String(P.yy).padStart(2,"0")}-${String(P.mm).padStart(2,"0")}-${String(P.no).padStart(4,"0")}`)){toast("A permit already uses that number");return}
   const dIss=mdy(today()),no=`${String(P.yy).padStart(2,"0")}-${String(P.mm).padStart(2,"0")}-${String(P.no).padStart(4,"0")}`;
-  if(!A.ctrl)A.ctrl=await nextCtrl();
+  if(!A.ctrl)A.ctrl=await nextCtrl(A);
   const R=secTotals(),tot=opLines().total;
   A.posted={pt:P.pt,yy:P.yy,mm:P.mm,no:P.no,pno:P.pno,key:no,date:dIss};A._posting=false;delete A._postNo;A.permitNo=no;A.updated=new Date().toISOString();A.total=tot;
   const mi=(A.middle||"").trim();
@@ -5966,7 +6040,7 @@ $("#cPlan").onclick=openPlan;
 let _audQ=Promise.resolve();
 function audit(a,r,d){const e={id:uid(),t:nowISO(),by:USER_NAME||"(unnamed)",a,r:String(r||""),d:String(d||"").slice(0,160)};
   _audQ=_audQ.then(async()=>{const L=(await DB.get("audit").catch(()=>null))||[];L.push(e);if(L.length>5000)L.splice(0,L.length-5000);await DB.set("audit",L)}).catch(()=>{});return _audQ}
-const AUD_LABEL={"post":"Posted permit","post-op":"Posted occupancy permit","save-assess":"Saved assessment","save-cert":"Saved certification","print-cert":"Printed certification","print-op":"Printed Order of Payment",
+const AUD_LABEL={"delete-assess":"Deleted draft assessment","post":"Posted permit","post-op":"Posted occupancy permit","save-assess":"Saved assessment","save-cert":"Saved certification","print-cert":"Printed certification","print-op":"Printed Order of Payment",
   "print-form":"Printed NBC form","print-letter":"Printed letter","save-pin":"Saved pin","delete-pin":"Deleted pin","app-new":"New application","app-status":"Application status","inspect":"Inspection logged",
   "backup":"Full backup","import":"Imported data","sync-connect":"Connected shared file","lock-set":"Set app PIN"};
 async function auditHtml(){const L=((await DB.get("audit").catch(()=>null))||[]).slice(-60).reverse();
@@ -6786,7 +6860,7 @@ async function openCamera(p,kind,after){geoStart();let d=document.getElementById
   d.querySelector("#cmFile").onchange=async e=>{for(const f of e.target.files){try{await camAddPhoto(p,kind,await shrink(f));n++}catch(x){}}N.textContent=`${n} photo${n>1?"s":""}`;e.target.value=""}}
 
 /* ================= Cloud mode (hosted web app): Firebase login + real-time sync, replaces the shared Drive file ================= */
-const CLOUD={cfg:window.OBO_FIREBASE||null,on:false,user:null,db:null,auth:null,ready:false,R:null,err:"",unsub:null,lastRemote:""};
+const CLOUD={cfg:window.OBO_FIREBASE||null,on:false,user:null,db:null,auth:null,ready:false,R:null,err:"",unsub:null,ctrlUnsub:null,lastRemote:""};
 const CB={pins:32,assess:64,coll:8,stamps:8,tomb:8};
 const cHash=s=>{let h=0;s=String(s);for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h)};
 const cDocOf=(kind,key,id)=>kind==="p"?`p-${cHash(id)%CB.pins}`:kind==="a"?`a-${cHash(id)%CB.assess}`:kind==="st"?`st-${cHash(id)%CB.stamps}`:kind==="t"?`t-${cHash(id)%CB.tomb}`:`${kind}-${key}-${cHash(id)%CB.coll}`;
@@ -6819,7 +6893,79 @@ async function cloudWrite(M){const R=CLOUD.R,W={};const put=(doc,field,val)=>{(W
   const ids=Object.keys(W);if(!ids.length)return 0;const col=CLOUD.db.collection("obo");
   for(let i=0;i<ids.length;i+=400){const b=CLOUD.db.batch();for(const id of ids.slice(i,i+400)){const w=W[id];if(w.__scalar)b.set(col.doc(id),{j:w.j,ts:nowISO(),by:USER_NAME||""});else b.set(col.doc(id),{items:w},{merge:true})}await b.commit()}
   if(big.length&&!CLOUD._bigWarned){CLOUD._bigWarned=1;toast("Not shared (too large for the cloud): "+big.join(", ")+" — kept on this device")}return ids.length}
-function cloudListen(){if(CLOUD.unsub)CLOUD.unsub();CLOUD.R=cEmpty();CLOUD.ready=false;
+/* ---- Serialized cloud assessment numbering and safe cloud draft deletion ---- */
+function cloudCtrlRef(){return CLOUD.db.collection("assessmentControl").doc("main")}
+function cloudAssessBucket(id){return CLOUD.db.collection("obo").doc(cDocOf("a","",id))}
+async function cloudClaimAssessment(a){
+  if(!CLOUD.on||!CLOUD.user||!CLOUD.ready||!SYNC.ok)throw Error("Cloud is not ready to reserve a control number.");
+  const bRef=cloudAssessBucket(a.id),cRef=cloudCtrlRef(),want=String(a.ctrl||"").trim();
+  if(want&&!/^\d+$/.test(want))throw Error("Control number must be numeric.");
+  const result=await CLOUD.db.runTransaction(async tx=>{
+    const [control,bucket]=await Promise.all([tx.get(cRef),tx.get(bRef)]);
+    const d=control.exists?control.data():{};
+    const high=Math.max(ctrlMax(),Number(d.high)||0);
+    const no=want?Number(want):high+1;
+    if(no<=0||!Number.isSafeInteger(no))throw Error("Invalid assessment control number.");
+    const existing=bucket.exists&&bucket.data().items&&bucket.data().items[a.id];
+    if(existing){let rec;try{rec=JSON.parse(existing)}catch(e){}if(rec&&rec.ctrl&&String(rec.ctrl)!==String(no))throw Error("This assessment changed on another computer. Sync first.")}
+    const ts=nowISO(),draft={...a,ctrl:String(no),updated:ts,_ts:ts,_by:USER_NAME||CLOUD.user.email};
+    tx.set(bRef,{items:{[a.id]:cJ(draft)}},{merge:true});
+    if(no>high)tx.set(cRef,{high:no,lastId:a.id,updated:ts,by:CLOUD.user.email},{merge:true});
+    else if(!control.exists)tx.set(cRef,{high,updated:ts,by:CLOUD.user.email},{merge:true});
+    return{no:String(no),high:Math.max(high,no)};
+  });
+  a.ctrl=result.no;CTRL_CLOUD_HIGH=Math.max(CTRL_CLOUD_HIGH,result.high);
+  return result.no;
+}
+async function cloudDeleteAssessmentTx(a,reason,linked,ev){
+  const ctrl=String(a.ctrl||"").trim(),num=/^\d+$/.test(ctrl)?Number(ctrl):0;
+  const cRef=cloudCtrlRef(),bRef=cloudAssessBucket(a.id);
+  const tombKey="assess\u0001"+a.id, tombRef=CLOUD.db.collection("obo").doc(cDocOf("t","",tombKey));
+  // Read every posted-register bucket to reject deletion if another device has posted it.
+  const regRefs=Array.from({length:CB.coll},(_,i)=>CLOUD.db.collection("obo").doc(`c-regPosted-${i}`));
+  const appRefs=[...new Set(linked.map(ap=>cDocOf("c","apps",ap.id)))].map(id=>CLOUD.db.collection("obo").doc(id));
+  const reclaimed=await CLOUD.db.runTransaction(async tx=>{
+    const refs=[cRef,bRef,tombRef,...regRefs,...appRefs];
+    const snaps=await Promise.all(refs.map(ref=>tx.get(ref)));
+    const c=snaps[0].exists?snaps[0].data():{};
+    const bucket=snaps[1].exists?snaps[1].data():{};
+    const raw=bucket.items&&bucket.items[a.id];if(!raw)throw Error("Assessment was changed or deleted on the cloud. Sync again.");
+    let server;try{server=JSON.parse(raw)}catch(e){throw Error("Cloud assessment is unreadable.")}
+    if(server.id!==a.id||String(server.ctrl||"")!==ctrl)throw Error("Cloud control number changed. Sync first.");
+    if(server.posted||server.permitNo||server.orNo||server.datePaid)throw Error("Posted or paid assessment cannot be deleted.");
+    for(const snap of snaps.slice(3,3+CB.coll)){const items=(snap.exists&&snap.data().items)||{};
+      for(const raw of Object.values(items)){let r;try{r=JSON.parse(raw)}catch(e){continue}if(ctrl&&String(r.ass||"").trim()===ctrl)throw Error("Control number exists in the posted permit register.")}}
+    const appUpdates=[];
+    for(let j=0;j<appRefs.length;j++){
+      const snap=snaps[3+CB.coll+j],items=(snap.exists&&snap.data().items)||{};
+      for(const [id,raw]of Object.entries(items)){let ap;try{ap=JSON.parse(raw)}catch(e){continue}
+        if(ap.assessId!==a.id)continue;
+        if(ap.permitNo||ap.paid||ap.assessed||ap.released)throw Error("Linked application already has official activity.");
+        delete ap.assessId;ap.updated=nowISO();ap._ts=ap.updated;ap._by=USER_NAME||CLOUD.user.email;
+        appUpdates.push({ref:appRefs[j],id,ap});
+      }
+    }
+    // Only release the very last control number. The legacy register/base is a hard floor.
+    const existingHigh=Number(c.high)||ctrlMax();
+    const others=Math.max(CTRL_BASE,LGUBP_LAST_CTRL,
+      ...assessCache.filter(x=>x.id!==a.id).map(x=>+x.ctrl||0),
+      ...REG.map(r=>+r.ass||0),
+      ...REG.flatMap(r=>(r.assRevs||[]).map(x=>+x||0)),
+      ...postedReg.map(r=>+r.ass||0));
+    const canRecover=!!num&&num===existingHigh&&others<num&&(!snaps[0].exists||c.lastId===a.id);
+    const ts=nowISO();
+    tx.update(bRef,new firebase.firestore.FieldPath("items",a.id),firebase.firestore.FieldValue.delete());
+    tx.set(tombRef,{items:{[tombKey]:ts}},{merge:true});
+    tx.set(CLOUD.db.collection("obo").doc(cDocOf("c","audit",ev.id)),{items:{[ev.id]:cJ({...ev,d:ev.d+` | ${canRecover?"last number recovered":"number retained"}`,_ts:ts})}},{merge:true});
+    for(const u of appUpdates)tx.set(u.ref,{items:{[u.id]:cJ(u.ap)}},{merge:true});
+    if(canRecover){const prev=assessCache.find(x=>x.id!==a.id&&+x.ctrl===num-1&&!x.posted);tx.set(cRef,{high:num-1,lastId:prev?prev.id:"",updated:ts,by:CLOUD.user.email,lastDelete:{number:num,reason:reason.slice(0,150),id:a.id,at:ts}},{merge:true})}
+    return canRecover;
+  });
+  if(reclaimed)CTRL_CLOUD_HIGH=num-1;
+  return reclaimed;
+}
+function cloudListen(){if(CLOUD.unsub)CLOUD.unsub();if(CLOUD.ctrlUnsub)CLOUD.ctrlUnsub();CLOUD.R=cEmpty();CLOUD.ready=false;
+  CLOUD.ctrlUnsub=cloudCtrlRef().onSnapshot(s=>{if(s.exists){CTRL_CLOUD_HIGH=+s.data().high||0}},e=>console.warn("Control number tracker:",e.message));
   CLOUD.unsub=CLOUD.db.collection("obo").onSnapshot({includeMetadataChanges:false},snap=>{let remote=false;
     snap.docChanges().forEach(ch=>{cParse(ch.doc.id,ch.type==="removed"?null:ch.doc.data());if(!ch.doc.metadata.hasPendingWrites)remote=true});
     const first=!CLOUD.ready;CLOUD.ready=true;if(first)setTimeout(()=>migratePhotos(true).catch(()=>{}),6000);CLOUD.err="";SYNC.ok=true;syncBadge();if(first||remote){clearTimeout(CLOUD._t);CLOUD._t=setTimeout(()=>syncNow(true),first?50:800)}},
@@ -6841,7 +6987,7 @@ function cloudShowLogin(msg){let d=document.getElementById("cgDlg");if(!d){d=doc
     try{try{localStorage.setItem("oboLastEmail",e)}catch(x){}await CLOUD.auth.signInWithEmailAndPassword(e,p)}catch(x){cloudShowLogin(/wrong-password|invalid-credential|user-not-found|invalid-login/.test(x.code||x.message)?"Wrong email or password.":/network/.test(x.code||"")?"No internet connection.":x.message)}};
   d.querySelector("#cgGo").onclick=go;d.querySelector("#cgP").onkeydown=e=>{if(e.key==="Enter")go()};
   d.querySelector("#cgForgot").onclick=async()=>{const e=d.querySelector("#cgE").value.trim();if(!e)return toast("Type your email first");try{await CLOUD.auth.sendPasswordResetEmail(e);toast("Password reset link sent to "+e)}catch(x){toast(x.message)}}}
-async function cloudSignOut(wipe){if(wipe&&!confirm("Sign out and remove all OBO-BPMS data from this device? (It stays in the cloud.)"))return;try{if(CLOUD.unsub)CLOUD.unsub()}catch(e){}await CLOUD.auth.signOut();
+async function cloudSignOut(wipe){if(wipe&&!confirm("Sign out and remove all OBO-BPMS data from this device? (It stays in the cloud.)"))return;try{if(CLOUD.unsub)CLOUD.unsub();if(CLOUD.ctrlUnsub)CLOUD.ctrlUnsub()}catch(e){}await CLOUD.auth.signOut();
   if(wipe){for(const n of["bpgeotag","tanaw-files"])try{indexedDB.deleteDatabase(n)}catch(e){}setTimeout(()=>location.reload(),400)}}
 function renderCloudBox(){const el=document.getElementById("sharedBox");if(!el)return;const u=CLOUD.user;
   el.innerHTML=`<div class="note" style="margin:0 0 6px">${u?`Signed in as <b>${esc(u.email)}</b>. Data is shared in real time with all OBO staff through the office cloud database${SYNC.last?` · last sync ${esc(new Date(SYNC.last).toLocaleString())}`:""}.${CLOUD.err?`<br><b style="color:var(--bad)">${esc(CLOUD.err)}</b>`:""}`:"Not signed in."}</div>
@@ -6856,7 +7002,7 @@ async function cloudInit(){if(!CLOUD.cfg||!window.firebase)return false;CLOUD.on
   SYNC.handle={name:"Cloud",kind:"cloud",queryPermission:async()=>"granted",requestPermission:async()=>"granted"};SYNC.name="Cloud";SYNC.ok=false;
   cloudShowLogin("");document.getElementById("cgDlg").innerHTML=`<div class="tdlg-box" style="width:min(400px,100%);margin-top:8vh;text-align:center"><img src="${SEAL}" alt="" style="width:72px;height:72px;align-self:center"><b>OBO-BPMS</b><span class="muted">Loading…</span></div>`;
   CLOUD.auth.onAuthStateChanged(u=>{CLOUD.user=u;if(u){const d=document.getElementById("cgDlg");if(d)d.hidden=true;if(!USER_NAME){USER_NAME=String(u.email||"").split("@")[0].toUpperCase();RAW.set("user",USER_NAME).catch(()=>{});renderUserChip()}cloudListen()}
-    else{if(CLOUD.unsub){CLOUD.unsub();CLOUD.unsub=null}CLOUD.R=null;CLOUD.ready=false;SYNC.ok=false;cloudShowLogin("")}try{renderShared()}catch(e){}syncBadge()});
+    else{if(CLOUD.unsub){CLOUD.unsub();CLOUD.unsub=null}if(CLOUD.ctrlUnsub){CLOUD.ctrlUnsub();CLOUD.ctrlUnsub=null}CTRL_CLOUD_HIGH=0;CLOUD.R=null;CLOUD.ready=false;SYNC.ok=false;cloudShowLogin("")}try{renderShared()}catch(e){}syncBadge()});
   window.addEventListener("online",()=>{if(CLOUD.user)syncNow(true)});return true}
 /* service worker: offline use and automatic updates */
 if(location.protocol==="https:"&&"serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});
@@ -7317,9 +7463,10 @@ async function importLgubpMdf(file){
   return LGUBP.build(T)}
 
 /* ================= Version, What's new, Help and printable user manual ================= */
-const APP_VERSION="1.3",APP_BUILD="2026-10-14";
+const APP_VERSION="1.3.1",APP_BUILD="2026-10-15";
 const WHATS_NEW=[
- ["1.3 — "+APP_BUILD,["Field phones: Send to office / Load office data; the office computer loads field files from Drive › 10 Field automatically",
+ ["1.3.1 — 2026-10-15",["Assessment → Saved: delete an accidental UNPOSTED draft with a required reason. The final unused control number can be reclaimed safely; paid and posted records are protected."]],
+ ["1.3 — 2026-10-14",["Field phones: Send to office / Load office data; the office computer loads field files from Drive › 10 Field automatically",
   "Checklist inspections per construction stage with a printed Inspection Report (with photos)",
   "Violations: NOV → Final notice → Work Stoppage Order → Endorsement to the Mayor, with the next step and its due date",
   "Zoning check of applications from the pin (allowed uses per zone set in the Data tab)",
