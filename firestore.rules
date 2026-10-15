@@ -26,6 +26,60 @@ service cloud.firestore {
     }
     // Atomic control-number allocation / recovery. In this installation,
     // the authorized Building Official is currently the sole approved staff account.
+    // v1.5: public documents are carefully curated, token-addressed views.
+    // An unguessable 192-bit token is required; browsing/search is prohibited.
+    // Neither collection contains applicant names, contact numbers, uploaded
+    // documents, technical assessments, exact addresses, or map coordinates.
+    function publicTrackingShape() {
+      return request.resource.data.keys().hasOnly([
+        'kind','state','applicationNo','stage','next','received','barangay','updatedAt','schema'
+      ]) && request.resource.data.keys().hasAll([
+        'kind','state','applicationNo','stage','next','received','barangay','updatedAt','schema'
+      ]) && request.resource.data.kind == 'tracking'
+        && request.resource.data.schema == 1
+        && request.resource.data.state in ['active','disabled']
+        && request.resource.data.applicationNo is string
+        && request.resource.data.stage is string
+        && request.resource.data.next is string
+        && request.resource.data.received is string
+        && request.resource.data.barangay is string
+        && request.resource.data.updatedAt is string
+        && request.resource.data.applicationNo.size() <= 70
+        && request.resource.data.stage.size() <= 70
+        && request.resource.data.next.size() <= 180
+        && request.resource.data.barangay.size() <= 70;
+    }
+    function publicPermitShape() {
+      return request.resource.data.keys().hasOnly([
+        'kind','status','permitNo','permitType','issuedOn','barangay','updatedAt','schema'
+      ]) && request.resource.data.keys().hasAll([
+        'kind','status','permitNo','permitType','issuedOn','barangay','updatedAt','schema'
+      ]) && request.resource.data.kind == 'permit'
+        && request.resource.data.schema == 1
+        && request.resource.data.status in ['valid','revoked','cancelled','unavailable']
+        && request.resource.data.permitNo is string
+        && request.resource.data.permitType is string
+        && request.resource.data.issuedOn is string
+        && request.resource.data.barangay is string
+        && request.resource.data.updatedAt is string
+        && request.resource.data.permitNo.size() <= 90
+        && request.resource.data.permitType.size() <= 90
+        && request.resource.data.barangay.size() <= 70;
+    }
+    match /publicTracking/{token} {
+      allow get: if token.matches('^[A-Za-z0-9_-]{32}$');
+      allow list: if false;
+      allow create, update: if isAdmin()
+        && token.matches('^[A-Za-z0-9_-]{32}$') && publicTrackingShape();
+      allow delete: if isAdmin();
+    }
+    match /publicPermits/{token} {
+      allow get: if token.matches('^[A-Za-z0-9_-]{32}$');
+      allow list: if false;
+      allow create, update: if isAdmin()
+        && token.matches('^[A-Za-z0-9_-]{32}$') && publicPermitShape();
+      allow delete: if isAdmin();
+    }
     match /assessmentControl/{id} {
       allow read: if isStaff();
       allow create: if isStaff() && request.resource.data.high is int;

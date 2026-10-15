@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <title>Track an Application or Verify a Permit · OBO Santo Tomas</title>
+  <meta name="description" content="OBO Santo Tomas: private-link application status and permit register verification.">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+  <style>
+    :root{--blue:#172e80;--blue2:#294dae;--ink:#17233a;--muted:#5d6880;--line:#dce3f0;--gold:#e8ad33;--bg:#f3f6fd;--ok:#13764c;--bad:#ba2d3b;--warn:#9a650c}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Figtree,system-ui,-apple-system,Segoe UI,sans-serif}
+    header{background:linear-gradient(115deg,#132461,var(--blue2));color:white;border-bottom:4px solid var(--gold);padding:20px 22px}
+    header .brand{max-width:840px;margin:auto;display:flex;align-items:center;gap:13px}
+    header .seal{width:46px;height:46px;border:2px solid #ffffff55;border-radius:50%;display:grid;place-items:center;font-size:25px;background:#ffffff18}
+    h1{font-size:19px;line-height:1.2;margin:0;font-weight:800}header small{font-size:12px;opacity:.9}
+    main{width:min(860px,calc(100% - 28px));margin:28px auto 70px}
+    .card{background:white;border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:0 7px 26px #1527540d;margin-bottom:18px}
+    .eyebrow{font-size:11px;text-transform:uppercase;font-weight:800;letter-spacing:.1em;color:var(--blue2)}
+    h2{font-size:22px;margin:5px 0 10px;line-height:1.24}p{margin:8px 0;color:var(--muted)}
+    .status{display:inline-flex;align-items:center;gap:7px;border:1px solid #d2e9dc;background:#f0fbf5;padding:8px 12px;border-radius:999px;font-weight:800;color:var(--ok);font-size:13px}
+    .status.alert{background:#fff4f1;border-color:#f1ceca;color:var(--bad)}.status.neutral{background:#f6f8fc;border-color:var(--line);color:var(--blue)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:20px}
+    .fact{background:#f7f9fd;border:1px solid var(--line);border-radius:11px;padding:13px 14px;min-width:0}
+    .fact span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
+    .fact strong{font-size:14px;overflow-wrap:anywhere;font-weight:750}
+    .info{margin-top:18px;border-left:4px solid var(--gold);padding:10px 14px;background:#fffaf0;font-size:13px;color:#554423;border-radius:0 10px 10px 0}
+    label{display:block;font-size:12px;font-weight:800;color:var(--blue);margin-top:15px}
+    input{width:100%;padding:12px 13px;border:1px solid #b8c5dc;border-radius:9px;background:#fff;font:inherit;min-width:0;margin-top:5px}
+    button{background:var(--blue);color:#fff;border:0;padding:11px 19px;font:700 14px Figtree,system-ui;cursor:pointer;border-radius:10px;margin-top:10px}
+    button:hover{background:#294dae}button:disabled{opacity:.55;cursor:wait}
+    a{color:var(--blue2);font-weight:700}footer{font-size:12px;color:var(--muted);text-align:center;margin-top:30px}
+    .hidden{display:none}.loader{display:inline-block;width:17px;height:17px;border:2px solid #bfd0f2;border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle}@keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:560px){.grid{grid-template-columns:1fr}.card{padding:18px}h1{font-size:16px}}
+  </style>
+</head>
+<body>
+<header><div class="brand"><div class="seal" aria-hidden="true">⚖</div><div><h1>OBO SANTO TOMAS</h1><small>Office of the Building Official · Santo Tomas, La Union</small></div></div></header>
+<main>
+  <section class="card">
+    <div class="eyebrow">Online status service</div>
+    <h2>Track an application or verify a permit</h2>
+    <p>Scan the QR on your official document or use the private link provided by the Office of the Building Official. Public access is limited to records that the office has explicitly published.</p>
+    <form id="lookup"><label for="lookupValue">Private tracking link, QR URL, or access code</label><input id="lookupValue" type="text" placeholder="Paste the private link or access code" autocomplete="off" maxlength="600"><button id="go" type="submit">Check status</button></form>
+  </section>
+  <section class="card hidden" id="result" aria-live="polite">
+    <div id="loading" class="hidden"><span class="loader" aria-hidden="true"></span> Checking the official public register…</div>
+    <div id="answer" class="hidden"><div class="eyebrow" id="kind"></div><h2 id="title"></h2><div id="status" class="status neutral"></div><p id="details"></p><div id="facts" class="grid"></div><div class="info" id="advisory"></div></div>
+    <div id="error" class="hidden" role="status"></div>
+  </section>
+  <footer>Only limited public details appear here. For the signed permit, corrections, or formal confirmation, contact the Municipal Engineering Office / Office of the Building Official in Santo Tomas, La Union. Never submit personal IDs or documents on this page.</footer>
+</main>
+<script src="vendor/firebase-app-compat.js"></script>
+<script src="vendor/firebase-firestore-compat.js"></script>
+<script>
+'use strict';
+const CFG={apiKey:'AIzaSyD8mFoqAouoWn29co_dAMhciUi7JEWYzS8',authDomain:'obo-bpms-santotomas.firebaseapp.com',projectId:'obo-bpms-santotomas',storageBucket:'obo-bpms-santotomas.firebasestorage.app',messagingSenderId:'789451141814',appId:'1:789451141814:web:4cd91553ca762dfd282c17'};
+const $=id=>document.getElementById(id);
+const allowed=/^[A-Za-z0-9_-]{32}$/;
+let db;
+function show(which){$('result').classList.remove('hidden');for(const id of ['loading','answer','error'])$(id).classList.toggle('hidden',id!==which)}
+function addFact(label,value){if(!value)return;const wrap=document.createElement('div');wrap.className='fact';const k=document.createElement('span');k.textContent=label;const v=document.createElement('strong');v.textContent=String(value);wrap.append(k,v);$('facts').append(wrap)}
+function formatDate(v){if(!v)return '';let d=new Date(v);return isNaN(d)?String(v):d.toLocaleString('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function parseValue(value){const raw=String(value||'').trim();if(allowed.test(raw))return{type:'tracking',token:raw};
+  try{const u=new URL(raw,location.href);if(u.origin!==location.origin||!u.pathname.endsWith('/track.html'))return null;
+    if(allowed.test(u.searchParams.get('v')||''))return{type:'permit',token:u.searchParams.get('v')};
+    if(allowed.test(u.searchParams.get('t')||''))return{type:'tracking',token:u.searchParams.get('t')};
+  }catch(e){}return null}
+function showFailure(title,detail){show('error');$('error').replaceChildren();const h=document.createElement('h2');h.textContent=title;const p=document.createElement('p');p.textContent=detail;$('error').append(h,p)}
+function renderRecord(type,x){
+  show('answer');$('facts').replaceChildren();$('kind').textContent=type==='permit'?'Official permit register verification':'Applicant tracking';
+  const disabled=type==='permit'?x.status==='unavailable':x.state!=='active';
+  if(disabled){$('title').textContent='This link is unavailable';$('status').textContent='Not available';$('status').className='status alert';$('details').textContent='The Office of the Building Official has disabled or withdrawn this public link.';$('advisory').textContent='Please contact the office for confirmation.';return}
+  if(type==='permit'){
+    const state=['valid','revoked','cancelled'].includes(x.status)?x.status:'unavailable';
+    $('title').textContent='Permit verification';$('status').textContent=state==='valid'?'Registered as valid':state==='revoked'?'Revoked / suspended':state==='cancelled'?'Cancelled':'Unavailable';
+    $('status').className='status '+(state==='valid'?'':'alert');
+    $('details').textContent='This entry reflects the public record last published by the OBO, not an electronic copy of the signed permit.';
+    addFact('Permit number',x.permitNo);addFact('Permit type',x.permitType);addFact('Date issued',x.issuedOn);addFact('Barangay',x.barangay);
+    $('advisory').textContent='Compare the number, permit type, and date against the actual signed permit. A valid status does not certify that a QR sticker or paper document is genuine. For discrepancies, contact the OBO.';
+  }else{
+    $('title').textContent='Building permit application';$('status').textContent=String(x.stage||'Status unavailable');$('status').className='status neutral';
+    $('details').textContent=String(x.next||'Contact the office for details.');addFact('Application number',x.applicationNo);addFact('Date received',x.received);addFact('Barangay',x.barangay);
+    $('advisory').textContent='This is an informational processing update. Approval, fees, official issuance and release must be confirmed with the office.';
+  }
+  addFact('Status last updated',formatDate(x.updatedAt));
+}
+async function load(tokenType){if(!tokenType)return showFailure('A private link is required','Use the original QR or complete link supplied by the OBO. Searching by name or permit number is intentionally unavailable.');
+  const {type,token}=tokenType;const u=new URL(location.href);u.search='';u.searchParams.set(type==='permit'?'v':'t',token);history.replaceState(null,'',u.pathname+u.search);
+  show('loading');try{
+    if(!db){if(!window.firebase||!firebase.firestore)throw Error('Public verification service not loaded.');
+      if(!firebase.apps.length)firebase.initializeApp(CFG);db=firebase.firestore()}
+    const doc=await db.collection(type==='permit'?'publicPermits':'publicTracking').doc(token).get({source:'server'});
+    if(!doc.exists)return showFailure('No public record found','Check that your QR or private link is complete. The document may not have been published or may have been withdrawn.');
+    renderRecord(type,doc.data());
+  }catch(e){console.error('Public lookup error:',e);showFailure('Unable to check the official register','A network or database access error occurred. Try again online; if the problem continues, ask the OBO to confirm that the public Firestore rules are published.')}}
+$('lookup').addEventListener('submit',e=>{e.preventDefault();load(parseValue($('lookupValue').value))});
+const query=new URLSearchParams(location.search);const tokenType=allowed.test(query.get('v')||'')?{type:'permit',token:query.get('v')}:allowed.test(query.get('t')||'')?{type:'tracking',token:query.get('t')}:null;
+if(tokenType)load(tokenType);
+</script>
+</body>
+</html>

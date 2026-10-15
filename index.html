@@ -6412,7 +6412,7 @@ const tierVal={simple:"",complex:"c",technical:"t"};
 const APP_STEPS=[["received","Received"],["evaluated","Evaluated"],["bfpOut","Endorsed to BFP"],["bfpIn","FSEC received"],["assessed","Assessed"],["paid","Paid"],["released","Released"]];
 async function loadApps(){try{APPS=(await DB.get("apps"))||[]}catch(e){APPS=[]}let custom=null;try{const r=await DB.get("reqList");if(r&&r.length){custom=r;REQ_LIST=r.slice();if(REQ_LIST.includes(REQ_DEFAULT2[0])&&!REQ_LIST.some(x=>/^Affidavit of Undertaking/.test(x))){const k=REQ_LIST.findIndex(x=>/SPA from the owner/.test(x));REQ_LIST.splice(k>=0?k+1:REQ_LIST.length,0,REQ_AFF)}}}catch(e){}
   APPS.forEach(a=>appMigrate(a,custom&&!custom.some(x=>REQ_DEFAULT2.includes(x))?custom:REQ_DEFAULT));try{const l=await DB.get("appLimit");if(l&&!(l.simple===5&&l.complex===10&&!l.technical))APP_LIMIT={simple:3,complex:7,technical:20,tower:7,nmEP:3,nmCF:7,...l}}catch(e){}appBadge()}
-async function saveApps(){try{await DB.set("apps",APPS)}catch(e){toast("Not saved: "+e.message)}appBadge()}
+async function saveApps(){try{await DB.set("apps",APPS);pvSyncSoon()}catch(e){toast("Not saved: "+e.message)}appBadge()}
 function workDays(a,b){const d0=pd(a),d1=b?pd(b):pd(today());if(!d0||!d1)return 0;let x=new Date(d0.y,d0.m-1,d0.d),e=new Date(d1.y,d1.m-1,d1.d),n=0;while(x<e){x.setDate(x.getDate()+1);if(isWorkday(x))n++}return n}
 /* RA 11032: the clock stops while the application waits on the applicant (payment of the assessed fees) */
 function appPayDates(a){let as=a.assessed||"",pd=a.paid||"";const x=a.assessId&&typeof assessCache!=="undefined"?assessCache.find(z=>z.id===a.assessId):null;
@@ -6443,7 +6443,7 @@ function applyPEdits(){const m=new Map(PEDITS.map(e=>[e.id,e]));
 function pStatusChip(r){return r.k==="void"?` <span class="chip s-none">CANCELLED</span>`:r.revoked?` <span class="chip s-none">REVOKED</span>`:r.corrected?` <span class="chip s-verify">corrected</span>`:""}
 const dupOf=r=>REG.filter(x=>x!==r&&isPermitRec(x)&&x.type===r.type&&x.no===r.no);
 function dupGroups(){const m=new Map();for(const r of REG){if(!isPermitRec(r))continue;const k=r.type+"|"+r.no;if(!m.has(k))m.set(k,[]);m.get(k).push(r)}return[...m.values()].filter(L=>L.length>1)}
-function refreshAfterPermitChange(){try{renderReg()}catch(e){}try{drawPins()}catch(e){}alertsRefresh()}
+function refreshAfterPermitChange(){try{renderReg()}catch(e){}try{drawPins()}catch(e){}alertsRefresh();pvSyncSoon()}
 function openPermitEdit(key){const r=REG.find(x=>isPermitRec(x)&&pKey(x)===key);if(!r)return;
   const e=PEDITS.find(x=>x.id===key)||{id:key,type:r.type,no:r.no,pno:r.pno||r.no,fields:{},status:"",reason:"",sDate:"",hist:[]};
   const O={...r,...(r._orig||{})},cur=f=>e.fields&&e.fields[f]!=null?e.fields[f]:(O[f]??"");const st=e.status||"",dups=dupOf(r);
@@ -7481,8 +7481,9 @@ async function importLgubpMdf(file){
   return LGUBP.build(T)}
 
 /* ================= Version, What's new, Help and printable user manual ================= */
-const APP_VERSION="1.4.0",APP_BUILD="2026-10-15";
+const APP_VERSION="1.5.0",APP_BUILD="2026-10-15";
 const WHATS_NEW=[
+ ["1.5.0 — 2026-10-15",["Opt-in applicant status tracking page via a secret QR/link without login", "Staff-managed publish/update/disable for individual application status", "Published permit verification QR links show registered permit number, type, date, barangay and validity only", "Public Firestore projections are separated from protected internal OBO records; reprint issued permits to use the live verification QR", "The applicant portal does not allow searching by name, phone number, or enumerable permit numbers"]],
  ["1.4.0 — 2026-10-15",["Applications: guided workflow with next step, assigned staff, internal follow-up date and processing history", "Document verification matrix: Received / Verified / Needs correction, optional applicability and correction remarks; links to existing checkboxes", "Print internal processing and document-verification report; dashboard includes next action and assigned staff", "Specialized tower and net-metering deadlines remain in their existing modules. No automatic permit issuing or payment confirmation."]],
  ["1.3.1 — 2026-10-15",["Assessment → Saved: delete an accidental UNPOSTED draft with a required reason. The final unused control number can be reclaimed safely; paid and posted records are protected."]],
  ["1.3 — 2026-10-14",["Field phones: Send to office / Load office data; the office computer loads field files from Drive › 10 Field automatically",
@@ -7789,7 +7790,7 @@ function renderApps(){const v=$("#appBody");if(APPED){renderAppForm();return}
   const st={open:APPS.filter(a=>!appInfo(a).done).length,over:APPS.filter(a=>appInfo(a).over).length,done:APPS.filter(a=>appInfo(a).done).length,late:APPS.filter(a=>appInfo(a).late).length};
   v.innerHTML=`<div class="dash-wrap" style="max-width:1100px">
    <div class="kpis">${kpi("In process",st.open,"applications not yet released","doc","var(--brand)")}${kpi("Over the time limit",st.over,`simple ${APP_LIMIT.simple} / complex ${APP_LIMIT.complex} / highly technical ${APP_LIMIT.technical} working days`,"warn","var(--bad)")}${kpi("Post-requirements overdue",APPS.filter(a=>(appInfo(a).post||{}).overdue).length,"clearances due 30 days after release","warn","var(--bad)")}${kpi("Released",st.done,`${st.late} released late`,"check","var(--ok)")}</div>
-   <div class="dash-filters"><button class="btn primary" id="apNew">+ New application</button><label>Show<select id="apF"><option value="open" ${f==="open"?"selected":""}>In process</option><option value="over" ${f==="over"?"selected":""}>Over the time limit</option><option value="done" ${f==="done"?"selected":""}>Released</option><option value="needs" ${f==="needs"?"selected":""}>Needs correction</option><option value="all" ${f==="all"?"selected":""}>All</option></select></label>
+   <div class="dash-filters"><button class="btn primary" id="apNew">+ New application</button><a class="btn" href="track.html" target="_blank" rel="noopener noreferrer">Public tracking portal ↗</a><label>Show<select id="apF"><option value="open" ${f==="open"?"selected":""}>In process</option><option value="over" ${f==="over"?"selected":""}>Over the time limit</option><option value="done" ${f==="done"?"selected":""}>Released</option><option value="needs" ${f==="needs"?"selected":""}>Needs correction</option><option value="all" ${f==="all"?"selected":""}>All</option></select></label>
      <label style="flex:1 1 220px">Search<input id="apQ" type="search" value="${esc(v.dataset.q||"")}" placeholder="Name, project, app no., permit no."></label><button class="btn" id="apCsv">Export CSV</button><button class="btn" id="apCfg">Settings</button></div>
    ${(()=>{const y=appYear(),b=appBaseOf(y),bad=APPS.filter(a=>{const n=appSeq(a.no,y);return n&&n<=b});return bad.length?`<div class="dcard" style="border-color:var(--bad)"><b>${bad.length} application no.${bad.length>1?"s":""} overlap${bad.length>1?"":"s"} LGU-BP's ${y} series.</b> LGU-BP already has ${b} application(s) this year, so OBO-BPMS's numbers should start at ${appNoOf(y,b+1)}. <button class="btn small primary" id="apRenum">Renumber</button></div>`:""})()}
    ${L.length?`<div class="tablewrap"><table class="dtable"><thead><tr><th style="text-align:left">App no.</th><th>Received</th><th style="text-align:left">Applicant</th><th style="text-align:left">Project</th><th>Stage</th><th>Next action</th><th style="text-align:left">Assigned staff</th><th>Working days</th><th>Requirements</th><th style="text-align:left">Permit</th></tr></thead><tbody>
@@ -7802,6 +7803,133 @@ function renderApps(){const v=$("#appBody");if(APPED){renderAppForm();return}
   $("#apCsv").onclick=()=>{if(!APPS.length)return toast("No applications yet");download(`applications-${stamp()}.csv`,csvOf(APPS.map(a=>{const i=appInfo(a);return{app_no:a.no,received:a.received,applicant:a.name,project:a.project||"",barangay:a.brgy||"",type:a.kind,complexity:tierOf(a),
     ...Object.fromEntries(APP_STEPS.map(([k,l])=>[k,a[k]||""])),working_days:i.wd,limit:i.lim,status:i.done?(i.late?"released late":"released"):(i.over?"over limit":"in process"),ownership_case:(ownCase(a)||{}).l||"",post_requirements_due:(i.post||{}).due||"",post_requirements_submitted:a.postDone||"",missing_requirements:i.missing,verification_deficiencies:wfDefCount(a),next_action:wfNextText(a),assigned_staff:a.wfAssignee||"",internal_follow_up:a.wfDue||"",permit_no:a.permitNo||"",remarks:a.remarks||""}})),"text/csv")};
   $("#apCfg").onclick=async()=>{const s=prompt("Processing time limit in working days — simple, complex, highly technical (RA 11032: 3, 7, 20):",`${APP_LIMIT.simple},${APP_LIMIT.complex},${APP_LIMIT.technical}`);if(!s)return;const[a,b,c]=s.split(/[ ,]+/).map(Number);if(a>0&&b>0&&c>0){APP_LIMIT={simple:a,complex:b,technical:c};await DB.set("appLimit",APP_LIMIT);renderApps()}else toast("Enter three numbers, e.g. 3,7,20")}}
+/* ================= v1.5 Public tracking / QR permit verification ================= */
+/* Public documents are a minimal, staff-published projection of internal records.
+   Tokens are 192-bit random values, not application/permit numbers. Never copy
+   the APPS object, assessment, document uploads, or applicant contact to public Firestore. */
+const PV_TRACK_COLLECTION="publicTracking",PV_PERMIT_COLLECTION="publicPermits";
+const PV_SENT=new Map();let PV_AUTO_RUNNING=false,PV_AUTO_AGAIN=false;
+function pvOnline(){return !!(CLOUD.on&&CLOUD.user&&CLOUD.db&&CLOUD.ready)}
+function pvToken(){
+  if(!window.crypto||!crypto.getRandomValues)throw Error('Secure random generator unavailable. Use HTTPS.');
+  const b=new Uint8Array(24);crypto.getRandomValues(b);
+  return btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function pvUrl(type,token){const u=new URL('track.html',location.href);u.search='';u.searchParams.set(type==='permit'?'v':'t',token);return u.href}
+function pvStatus(a){
+  // Publish only controlled workflow milestones. Never publish personal, financial,
+  // location-coordinate, or internal deficiency details.
+  if(a.disapproved)return ['Disapproved','Please contact the Office of the Building Official.'];
+  if(a.released)return ['Released','The office has recorded release of the permit or decision.'];
+  if(a.paid)return ['Payment recorded','Under final review for release.'];
+  if(a.assessed)return ['For payment','Please contact the office for the approved assessment and payment instructions.'];
+  if(wfDefCount(a)>0||a.defNotice&&!a.evaluated)return ['Needs correction','Please contact the office regarding missing or deficient requirements.'];
+  if(a.bfpIn)return ['BFP clearance received','Technical and administrative review is ongoing.'];
+  if(a.bfpOut)return ['Referred to BFP','Awaiting clearance or other required action.'];
+  if(a.evaluated)return ['Technical evaluation','The application is under evaluation.'];
+  return ['Received','Application is recorded and awaiting document screening.'];
+}
+function pvTrackingPayload(a){const [stage,next]=pvStatus(a);return{
+  kind:'tracking',state:'active',applicationNo:String(a.no||'').slice(0,70),
+  stage,next,received:String(a.received||'').slice(0,20),
+  barangay:String(a.brgy||'').slice(0,70),updatedAt:nowISO(),schema:1
+}}
+function pvMatches(no){return REG.filter(r=>isPermitRec(r)&&String(r.pno||r.no||'').trim().toUpperCase()===String(no||'').trim().toUpperCase())}
+function pvPermitRecord(a){const no=a.pvPermit?.no||a.permitNo||'';const rows=pvMatches(no);return rows.length===1?rows[0]:null}
+function pvPermitPayload(a){const r=pvPermitRecord(a);const no=a.pvPermit?.no||a.permitNo||'';
+  const status=!r?'unavailable':r.k==='void'?'cancelled':r.revoked?'revoked':'valid';
+  return{kind:'permit',status,permitNo:String(no).slice(0,90),
+    permitType:String(r?.typeLabel||r?.type||'').slice(0,90),
+    issuedOn:String(r?.date||'').slice(0,30),barangay:String(r?.brgy||'').slice(0,70),
+    updatedAt:nowISO(),schema:1};
+}
+async function pvPut(type,token,data){if(!pvOnline())throw Error('Sign in and wait for Firebase sync to finish.');
+  if(!/^[A-Za-z0-9_-]{32}$/.test(token))throw Error('Invalid public token');
+  await CLOUD.db.collection(type==='permit'?PV_PERMIT_COLLECTION:PV_TRACK_COLLECTION).doc(token).set(data);
+  PV_SENT.set(type+':'+token,JSON.stringify({...data,updatedAt:''}));
+}
+async function pvSyncAll(){
+  if(!pvOnline())return;
+  if(PV_AUTO_RUNNING){PV_AUTO_AGAIN=true;return}
+  PV_AUTO_RUNNING=true;
+  try{do{PV_AUTO_AGAIN=false;
+    for(const a of APPS){
+      for(const [type,ref,make] of [['tracking',a.pvTracking,pvTrackingPayload],['permit',a.pvPermit,pvPermitPayload]]){
+        if(!ref?.enabled||!ref.token)continue;
+        const data=make(a),key=type+':'+ref.token,body=JSON.stringify({...data,updatedAt:''});
+        if(PV_SENT.get(key)===body)continue;
+        try{await pvPut(type,ref.token,data)}catch(e){console.error('Public projection sync failed:',e);toast('Public status update failed; check Firebase rules and connection.');return}
+      }
+    }
+  }while(PV_AUTO_AGAIN)}finally{PV_AUTO_RUNNING=false}
+}
+function pvSyncSoon(){if(pvOnline())pvSyncAll().catch(e=>{console.error(e);toast('Public status sync failed')})}
+function pvPublicCard(a){const saved=APPS.some(x=>x.id===a.id),online=pvOnline();
+  const t=a.pvTracking||{},p=a.pvPermit||{},r=pvMatches(a.permitNo||'');
+  const active=r.length===1&&r[0].k==='permit'&&!r[0].revoked;
+  const verified=p.enabled&&p.no===a.permitNo&&!!a.permitNo;
+  const linkbox=(type,ref)=>`<div style="margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:9px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <div style="background:white;padding:6px;line-height:0">${qrSvg(pvUrl(type,ref.token),110)}</div>
+    <div style="min-width:180px;flex:1;overflow-wrap:anywhere"><b>${type==='permit'?'Public permit verification':'Applicant status tracking'}</b><p class="sub" style="margin:4px 0">Share this QR or the private link only with the intended holder.</p>
+    <a href="${esc(pvUrl(type,ref.token))}" target="_blank" rel="noopener noreferrer">Open public page</a><br><code style="font-size:11px;word-break:break-all">${esc(pvUrl(type,ref.token))}</code>
+    <div class="row" style="margin-top:7px"><button class="btn small" data-pv-copy="${type}">Copy link</button><button class="btn small" data-pv-print="${type}">Print QR slip</button></div></div></div>`;
+  return `<div class="dcard" id="pvPanel"><h3>Public tracking &amp; QR permit verification · v1.5</h3>
+    <p class="sub" style="margin:3px 0 8px">Only a minimal public status is visible. Applicant name, contact, plans, assessment, staff remarks and scanned documents are <b>not</b> published. Links contain a random secret token; do not post them publicly.</p>
+    ${!online?`<div class="note" style="border-color:var(--warn)">Firebase must be signed in and online before publishing or updating public records.</div>`:''}
+    <fieldset><legend>Applicant tracking</legend>
+      <div class="row"><button class="btn small primary" id="pvTrackPublish" ${!online||!saved?'disabled':''}>${t.enabled?'Update public status':'Enable public tracking'}</button>
+      ${t.enabled?`<button class="btn small danger" id="pvTrackDisable">Disable link</button>`:''}</div>
+      ${t.enabled&&t.token?linkbox('tracking',t):`<p class="sub">Tracking is off. No application information is available on the public page.</p>`}
+    </fieldset>
+    <fieldset><legend>Official permit verification</legend>
+      <p class="sub" style="margin:0 0 6px">Publish only after checking an issued permit in the OBO permit register. QR links show its recorded number, kind, issue date, barangay and current validity status.</p>
+      ${!a.permitNo?'<p class="sub">No permit number linked to this application yet.</p>':
+         r.length!==1?`<p class="sub" style="color:var(--bad)">${r.length?'Duplicate permit numbers in the register. Resolve first.':'No matching issued permit found in the register.'}</p>`:
+         `<p class="sub">Register: ${esc(r[0].pno||r[0].no)} · ${esc(r[0].typeLabel||r[0].type)} · ${esc(r[0].k==='void'?'CANCELLED':r[0].revoked?'REVOKED':'VALID')}</p>`}
+      <div class="row"><button class="btn small primary" id="pvPermitPublish" ${!online||!saved||!active?'disabled':''}>${verified?'Update verification':'Publish verification QR'}</button>
+      ${p.enabled?`<button class="btn small danger" id="pvPermitDisable">Disable link</button>`:''}</div>
+      ${p.enabled&&p.token?linkbox('permit',p):'<p class="sub">Verification is off. The existing printed QR, if any, remains a local check code until an official verification link is enabled and the permit is reprinted.</p>'}
+      ${p.enabled&&p.no!==a.permitNo?'<p style="color:var(--bad)">Permit number changed. Disable the old link, then publish the new number after verification.</p>':''}
+    </fieldset>
+    <p class="sub" style="font-size:11.5px">Changes to the application and register refresh already-published links while the staff app is online. This is an information service, not electronic issuance or payment verification.</p>
+  </div>`;
+}
+function pvQrPrint(a,type,ref){if(!ref?.enabled)return;const url=pvUrl(type,ref.token),title=type==='permit'?'OFFICIAL PERMIT VERIFICATION':'APPLICATION STATUS TRACKING';
+  const main=`<div class="rpage" style="padding:.8in .9in;text-align:center;font-family:Arial,sans-serif">${rptHead(title,'Office of the Building Official · Santo Tomas, La Union')}
+    <p style="font-size:14px">${type==='permit'?'Permit no.':'Application no.'} <b>${esc(type==='permit'?(ref.no||''):a.no||'')}</b></p>
+    <div style="margin:18px auto;width:245px">${qrSvg(url,230)}</div><p>Scan QR to ${type==='permit'?'verify the public register entry':'view current application status'}.</p>
+    <p style="font-size:11px;overflow-wrap:anywhere">${esc(url)}</p><p style="font-size:10px">Only records expressly published by the OBO appear. This slip does not replace an official permit.</p></div>`;
+  printReport(main);
+}
+function pvBind(a,rerender){const root=$('#pvPanel');if(!root)return;const onlineOrWarn=()=>{if(pvOnline())return true;toast('Sign in to Firebase and wait for synchronization');return false};
+  const savedOrWarn=()=>{if(APPS.some(x=>x.id===a.id))return true;toast('Save the application first');return false};
+  const after=async what=>{await appSaveQuiet(a);audit('public-'+what,a.no,'Public link status updated');rerender()};
+  root.querySelector('#pvTrackPublish')?.addEventListener('click',async()=>{if(!onlineOrWarn()||!savedOrWarn())return;
+    try{const token=a.pvTracking?.token||pvToken();if(!confirm('Make a minimal public tracking record available to anyone holding this secret link?'))return;
+      await pvPut('tracking',token,pvTrackingPayload(a));a.pvTracking={token,enabled:true,updatedAt:nowISO()};await after('tracking-publish');toast('Applicant tracking link published')}
+    catch(e){alert('Unable to publish tracking: '+e.message)}
+  });
+  root.querySelector('#pvTrackDisable')?.addEventListener('click',async()=>{if(!onlineOrWarn())return;if(!confirm('Disable applicant tracking link immediately?'))return;
+    try{const t=a.pvTracking;await pvPut('tracking',t.token,{kind:'tracking',state:'disabled',applicationNo:'',stage:'Unavailable',next:'',received:'',barangay:'',updatedAt:nowISO(),schema:1});t.enabled=false;await after('tracking-disable');toast('Public tracking disabled')}
+    catch(e){alert('Unable to disable tracking: '+e.message)}
+  });
+  root.querySelector('#pvPermitPublish')?.addEventListener('click',async()=>{if(!onlineOrWarn()||!savedOrWarn())return;
+    const rows=pvMatches(a.permitNo);if(rows.length!==1||rows[0].k!=='permit'||rows[0].revoked)return alert('Official, unique, valid permit required before publishing.');
+    if(a.pvPermit?.enabled&&a.pvPermit.no!==a.permitNo)return alert('Disable the previous number first.');
+    if(!confirm(`Publish official verification for ${a.permitNo}?\n\nCheck the actual signed permit and current register entry first. Public page will show permit number, type, issue date, barangay and validity.`))return;
+    const original=a.pvPermit;
+    try{const token=original?.no===a.permitNo&&original.token?original.token:pvToken();
+      const pub={token,no:a.permitNo,enabled:true};await pvPut('permit',token,pvPermitPayload({...a,pvPermit:pub}));
+      a.pvPermit=pub;await after('permit-publish');toast('Verification QR published. Reprint permit to use the new QR.')}
+    catch(e){a.pvPermit=original;alert('Unable to publish verification: '+e.message)}
+  });
+  root.querySelector('#pvPermitDisable')?.addEventListener('click',async()=>{if(!onlineOrWarn())return;if(!confirm('Disable this official verification link?'))return;
+    try{const p=a.pvPermit;await pvPut('permit',p.token,{kind:'permit',status:'unavailable',permitNo:'',permitType:'',issuedOn:'',barangay:'',updatedAt:nowISO(),schema:1});p.enabled=false;await after('permit-disable');toast('Public verification disabled')}
+    catch(e){alert('Unable to disable verification: '+e.message)}
+  });
+  root.querySelectorAll('[data-pv-copy]').forEach(b=>b.onclick=()=>{const type=b.dataset.pvCopy,ref=type==='permit'?a.pvPermit:a.pvTracking;const u=pvUrl(type,ref.token);navigator.clipboard.writeText(u).then(()=>toast('Private link copied')).catch(()=>prompt('Copy the private link:',u))});
+  root.querySelectorAll('[data-pv-print]').forEach(b=>b.onclick=()=>pvQrPrint(a,b.dataset.pvPrint,b.dataset.pvPrint==='permit'?a.pvPermit:a.pvTracking));
+}
 /* ================= v1.4 Guided permit workflow + documentary verification ================= */
 /* Extra metadata lives within the existing APPS records, so old applications remain readable.
    This module does NOT issue permits, mark payments verified or grant staff authorizations. */
@@ -7910,6 +8038,7 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
    ${appPinCardHtml(a)}
    ${(a.kind||"BP")==="BP"||a.kind==="TW"?zcCardHtml(a):""}
    ${wfPanelHtml(a)}
+   ${pvPublicCard(a)}
    <div class="dcard"><h3>Progress</h3><div class="steps">${APP_STEPS.map(([k,l])=>`<div class="stp ${a[k]?"on":""}"><span>${l}</span><input type="date" data-ap="${k}" value="${esc(a[k]||"")}"><button class="btn small" data-today="${k}">${a[k]?"✓":"Today"}</button></div>`).join("")}</div>
     <p class="sub" style="margin:4px 0 0">Working days count Monday–Friday from the date received; holidays are not excluded.</p></div>
    ${isNM(a)?nmCardHtml(a):""}${a.kind==="OP"?opCardHtml(a):""}${isTower(a)?towerCardHtml(a):""}${(a.kind||"BP")==="BP"?ownCardHtml(a):""}
@@ -7939,14 +8068,14 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
   $("#apAck").onclick=async()=>{if(!await svA())return;audit("print-ack",a.no,a.name);printReport(ackHtml(a))};
   $("#apDef").onclick=async()=>{if(!await svA())return;a.defNotice=today();await saveApps();audit("print-deficiency",a.no,a.name);printReport(noticeHtml(a,"def"))};
   $("#apDis").onclick=async()=>{if(!await svA())return;const t=prompt("Reason(s) for disapproval — separate with | :",a.disReasons||"");if(!t)return;a.disReasons=t;a.disapproved=today();await saveApps();audit("print-disapproval",a.no,a.name);printReport(noticeHtml(a,"dis",t.split("|").map(x=>x.trim()).filter(Boolean)))};
-  wfBind(a,renderAppForm);
+  wfBind(a,renderAppForm);pvBind(a,renderAppForm);
   if(isTower(a))bindTower(a,renderAppForm);if(isNM(a))bindNM(a,renderAppForm);if(a.kind==="OP")bindOP(a,renderAppForm);bindAppPin(a,renderAppForm);bindZc(a,renderAppForm);bindEval(a,renderAppForm);$("#apMsg").onclick=async()=>{if(!String(a.name||"").trim())return toast("Enter the applicant");await appSaveQuiet(a);openMsg(a)};
   docsCardHtml(a).then(h=>{const sl=document.getElementById("docsSlot");if(sl&&APPED===a){sl.innerHTML=h;bindDocs(a,renderAppForm)}}).catch(()=>{});
   $("#apBack").onclick=()=>{APPED=null;renderApps()};
   $("#apSave").onclick=async()=>{if(!a.name.trim())return toast("Enter the applicant");a.no=String(a.no||"").trim().toUpperCase();
     if(!a.no)a.no=await nextAppNo();if(APPS.some(x=>x.id!==a.id&&x.no===a.no))return alert(`${a.no} is already used by another application. Next free number: ${await nextAppNo()}`);a.updated=nowISO();const old=APPS.find(x=>x.id===a.id);const k=APPS.findIndex(x=>x.id===a.id);
     if(k>=0)APPS[k]=a;else APPS.push(a);await saveApps();audit(k>=0?"app-status":"app-new",a.no,`${a.name} · ${appInfo(a).step}`);toast("Application saved");APPED=null;renderApps()};
-  const d=$("#apDel");if(d)d.onclick=async()=>{if(!confirm("Delete this application record?"))return;APPS=APPS.filter(x=>x.id!==a.id);await saveApps();APPED=null;renderApps()};
+  const d=$("#apDel");if(d)d.onclick=async()=>{if(a.pvTracking?.enabled||a.pvPermit?.enabled)return alert("Disable all public tracking and verification links before deleting this application.");if(!confirm("Delete this application record?"))return;APPS=APPS.filter(x=>x.id!==a.id);await saveApps();APPED=null;renderApps()};
   const as=$("#apAssess");if(as)as.onclick=async()=>{if(!a.name.trim())return toast("Enter the applicant");if(!APPS.some(x=>x.id===a.id)){a.updated=nowISO();APPS.push(a);await saveApps()}
     let x=a.assessId?assessCache.find(z=>z.id===a.assessId):null;
     if(!x){x=blankAssess();const[fam,rest]=String(a.name).split(",");const parts=String(rest||"").trim().split(" ");const mi=parts.length>1&&/^[A-Z]\.?$/i.test(parts[parts.length-1])?parts.pop():"";
@@ -7971,6 +8100,7 @@ async function postOccupancy0(c){if(SYNC.handle&&SYNC.ok)await syncNow(true);if(
 function qrSvg(text,px){try{const q=qrcode(0,"M");q.addData(String(text).normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\x20-\x7E\n]/g,""));q.make();const n=q.getModuleCount();
   let d="";for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+=`M${c},${r}h1v1h-1z`;return`<svg viewBox="-2 -2 ${n+4} ${n+4}" width="${px||72}" height="${px||72}" shape-rendering="crispEdges"><rect x="-2" y="-2" width="${n+4}" height="${n+4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`}catch(e){return""}}
 function permitQrText(c){const no=c.type==="op"||c.type==="co"?c.opNo:c.permitNo;if(!no)return"";
+  const pub=APPS.find(a=>a.pvPermit?.enabled&&a.pvPermit.no===no&&a.pvPermit.token);if(pub)return pvUrl("permit",pub.pvPermit.token);
   return[`OBO SANTO TOMAS, LA UNION`,`${({bp:"BUILDING PERMIT",bp01:"BUILDING PERMIT",op:"OCCUPANCY PERMIT",co:"CERTIFICATE OF OCCUPANCY",acc:"PERMIT"})[c.type]||"PERMIT"} ${no}`,`ISSUED ${c.type==="op"||c.type==="co"?c.opDate||"":c.dateIssued||""}`,`TO ${fmUp(c.name||"")}`,c.project?fmUp(c.project):"",c.location?fmUp(c.location):"",`CODE ${pcode(no,c.name)}`,`VERIFY WITH THE OFFICE OF THE BUILDING OFFICIAL`].filter(Boolean).join("\n")}
 
 /* ================= NOV / WSO letters ================= */
