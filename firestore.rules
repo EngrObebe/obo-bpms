@@ -80,6 +80,72 @@ service cloud.firestore {
         && token.matches('^[A-Za-z0-9_-]{32}$') && publicPermitShape();
       allow delete: if isAdmin();
     }
+
+    // v1.7 — INTERNAL annual commercial inspection and billing data.
+    // Public applicant tracking users MUST NOT read these collections.
+    // Authorized OBO admin is the only writer in this installation.
+    match /annualBuildings/{buildingId} {
+      allow get, list: if isStaff();
+      allow create, update: if isAdmin()
+        && request.resource.data.owner is string
+        && request.resource.data.brgy is string
+        && request.resource.data.reviewed is bool
+        && request.resource.data.active is bool
+        && request.resource.data.area is number
+        && request.resource.data.area >= 0;
+      // Retain identity and audit history of buildings used for annual billing.
+      allow delete: if false;
+    }
+    match /annualConfig/{configId} {
+      allow get, list: if isStaff();
+      allow create, update: if isAdmin() && configId == 'current'
+        && request.resource.data.approved is bool
+        && request.resource.data.legalBasis is string
+        && request.resource.data.brackets is list
+        && request.resource.data.eachAbove1000 is number;
+      allow delete: if false;
+    }
+    match /annualBills/{annualBillId} {
+      allow get, list: if isStaff();
+      allow create: if isAdmin()
+        && request.resource.data.year is int
+        && request.resource.data.buildingId is string
+        && annualBillId == string(request.resource.data.year) + '__' + request.resource.data.buildingId
+        && request.resource.data.state == 'draft'
+        && request.resource.data.payments is list
+        && request.resource.data.payments.size() == 0;
+      allow update: if isAdmin()
+        && request.resource.data.year == resource.data.year
+        && request.resource.data.buildingId == resource.data.buildingId
+        && request.resource.data.baseFee == resource.data.baseFee
+        && request.resource.data.extraFee == resource.data.extraFee
+        && request.resource.data.state in ['draft','issued','void']
+        && request.resource.data.payments is list
+        && request.resource.data.payments.size() >= resource.data.payments.size();
+      // No removal: a voided bill reserves the annual building-year key.
+      allow delete: if false;
+    }
+    match /annualReceipts/{receiptKey} {
+      allow get, list: if isStaff();
+      // A unique normalized OR number may be recorded exactly once.
+      // All payments and the OR reservation are written atomically.
+      allow create: if isAdmin()
+        && request.resource.data.orNo is string
+        && request.resource.data.billId is string
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0;
+      allow update, delete: if false;
+    }
+    match /annualAudit/{auditId} {
+      allow get, list: if isStaff();
+      allow create: if isAdmin()
+        && request.resource.data.what is string
+        && request.resource.data.ref is string
+        && request.resource.data.by is string;
+      // Append-only annual action history.
+      allow update, delete: if false;
+    }
+
     match /assessmentControl/{id} {
       allow read: if isStaff();
       allow create: if isStaff() && request.resource.data.high is int;

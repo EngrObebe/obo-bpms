@@ -1128,6 +1128,32 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
 .fa-plan .row label{min-width:145px}
 @media(max-width:640px){.fa-task{padding:10px}.fa-plan .row label{flex:1 1 100%}}
 </style>
+<style id="annualV17Style">
+.hacts{grid-template-columns:repeat(2,1fr)}
+#btnAnnual{grid-column:1/-1;background:#e0a21f;color:#172033;border-color:#e0a21f}
+.annualNav{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.annualNav button{font:700 12px var(--font-ui);cursor:pointer;border:1px solid var(--line);color:var(--ink);background:var(--panel);border-radius:8px;padding:8px 11px}
+.annualNav button.active{background:var(--accent);color:var(--accent-ink)}
+.annualNav label{margin-left:auto;font-size:12px;font-weight:700;display:flex;align-items:center;gap:7px;color:var(--muted)}
+.annualNav input{width:100px}.annualBody{padding:18px;flex:1;overflow-y:auto;background:var(--bg)}
+.annualCard{padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.annualCard h2{font-size:18px;margin:0 0 12px}.annualCard h3{margin:14px 0 8px;font-size:14px}
+.annualStats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:10px 0 15px}
+.annualStat{background:var(--soft);padding:12px;border-radius:10px;display:flex;flex-direction:column;gap:5px}
+.annualStat strong{font-size:20px;font-weight:800}.annualStat span{font-size:11px;color:var(--muted)}
+.annualNotice{border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:11px 13px;line-height:1.5;margin:8px 0 12px}
+.annualWarn{color:#b16400;font-weight:700}.annualGood{color:var(--ok);font-weight:700}
+.annualLeft{text-align:left;white-space:normal;min-width:180px}.annualLeft div{color:var(--muted);font-size:11px}
+.annualGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:10px;margin:10px 0}
+.annualGrid>label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:12px;font-weight:600}
+.annualCheck{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:10px 0;cursor:pointer}
+.annualCheck input,.annualImport input{width:auto;flex:0 0 auto}.annualImport{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding:8px;cursor:pointer}
+.annualFacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0}
+.annualFacts div{border:1px solid var(--line);padding:10px;border-radius:8px;display:flex;flex-direction:column;gap:6px}
+.annualFacts small{color:var(--muted)}
+#annualPanel .tablewrap{margin-top:14px}#annualPanel td{vertical-align:middle}#annualPanel td div{white-space:normal}#annualPanel .btn[disabled]{opacity:.45;cursor:not-allowed}
+@media(max-width:750px){.annualBody{padding:8px}.annualCard{padding:11px}.annualNav{padding:7px;gap:5px}.annualNav label{margin-left:0}.annualNav button{font-size:11px;padding:6px}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -7518,8 +7544,9 @@ async function importLgubpMdf(file){
   return LGUBP.build(T)}
 
 /* ================= Version, What's new, Help and printable user manual ================= */
-const APP_VERSION="1.6.0",APP_BUILD="2026-10-15";
+const APP_VERSION="1.7.0",APP_BUILD="2026-10-15";
 const WHATS_NEW=[
+ ["1.7.0 — 2026-10-15",["New Annual Billing button: protected January commercial building registry and BPLO CSV coordination", "Import commercial candidate GIS pins as unverified, review occupancy and floor area per physical building", "Approve applicable fee schedule before generating one draft per building and year; no automatic official notices", "Issue assessments separately, record Treasurer-verified OR payments, track outstanding amounts and linked CAI", "Export annual ledger, OR register, backup JSON and print a reconciliation report; dedicated Firestore security rules"]],
  ["1.6.0 — 2026-10-15",["NOV tab: Field Action Center with scheduled inspections, NOV internal follow-ups, official deadline review, and annual inspection reviews", "Filters for overdue / today / next 7 days; CSV worklist and printable field schedule", "Pin Form: schedule and assign the next site visit with purpose and history; log actual inspection to close the scheduled visit", "NOV Form: internal next action, target date, and responsible staff, separate from official compliance deadline", "No automatic legal enforcement, inspection certification, or new public Firebase collections. Existing assessment and applicant QR portal remain unchanged"]],
  ["1.5.0 — 2026-10-15",["Opt-in applicant status tracking page via a secret QR/link without login", "Staff-managed publish/update/disable for individual application status", "Published permit verification QR links show registered permit number, type, date, barangay and validity only", "Public Firestore projections are separated from protected internal OBO records; reprint issued permits to use the live verification QR", "The applicant portal does not allow searching by name, phone number, or enumerable permit numbers"]],
  ["1.4.0 — 2026-10-15",["Applications: guided workflow with next step, assigned staff, internal follow-up date and processing history", "Document verification matrix: Received / Verified / Needs correction, optional applicability and correction remarks; links to existing checkboxes", "Print internal processing and document-verification report; dashboard includes next action and assigned staff", "Specialized tower and net-metering deadlines remain in their existing modules. No automatic permit issuing or payment confirmation."]],
@@ -8464,5 +8491,6 @@ function migrateTL(p){if(p){if(LEGACY_TL[p.kind])p.kind=LEGACY_TL[p.kind];if(LEG
   if(pins.length){const b=L.latLngBounds(pins.map(p=>[p.lat,p.lng]));map.fitBounds(b.pad(.2),{maxZoom:17})}else map.fitBounds(muniLayer.getBounds(),{padding:[10,10]});
 })();
 </script>
+<script src="annual-v17.js?v=1.7.0"></script>
 </body>
 </html>
