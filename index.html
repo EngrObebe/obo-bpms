@@ -1097,6 +1097,24 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
 .rpage.dashp .dgrid{grid-template-columns:1.05fr 2fr;gap:8px}.rpage.dashp .dgrid>div:last-child{display:grid!important;grid-template-columns:1.15fr 1fr;gap:8px;align-items:start}.rpage.dashp .dgrid>div:last-child>.dcard:first-child{grid-row:span 2}
 @media print{#printArea .rpage{box-shadow:none;break-after:page;margin:0}#printArea .rpage:last-child{break-after:auto}#printArea .dashp *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style>
+<style>
+/* v1.4.0 — guided application workflow and documentary verification */
+.wf-summary{display:flex;gap:8px;flex-wrap:wrap;margin:9px 0}
+.wf-summary>span{background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12px}
+.wf-summary b{font-variant-numeric:tabular-nums}
+.wf-chain{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:6px;margin:9px 0}
+.wf-stage{border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--soft);font-size:11.5px;min-width:0}
+.wf-stage b{display:block;margin-bottom:4px}.wf-stage .muted{font-size:11px;overflow-wrap:anywhere}
+.wf-stage.done{border-color:var(--ok)}.wf-stage.current{border:2px solid var(--accent);background:var(--accent-soft)}
+.wf-stage.pending{opacity:.8}.wf-hist{max-height:180px;overflow:auto;font-size:12px;border-top:1px solid var(--line);margin-top:7px}
+.wf-hist>div{padding:6px 0;border-bottom:1px solid var(--line)}
+.wf-review{width:100%;table-layout:auto}.wf-review th,.wf-review td{white-space:normal;vertical-align:top;text-align:left}
+.wf-review td:first-child{min-width:220px}.wf-review select{min-width:138px;padding:6px;font-size:12px}
+.wf-review input{min-width:150px;padding:6px;font-size:12px}
+.wf-sub{font-size:12px;color:var(--muted);margin:4px 0}
+.wf-alert{border-left:4px solid var(--bad);padding:8px 10px;background:var(--soft);font-size:12px}
+@media(max-width:640px){.wf-review td:first-child{min-width:170px}.wf-review input{min-width:120px}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1294,7 +1312,7 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
 </div>
 <div id="lockScr" class="lockscr" hidden><div class="lockbox"><img id="lockSeal" alt=""><b>OBO-BPMS is locked</b><span class="muted">Enter the PIN for this computer</span><input id="lockPin" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN"><button class="btn primary" id="lockGo">Unlock</button><span id="lockErr" style="color:var(--bad);min-height:1.2em"></span></div></div>
 <div id="appEd" class="calc" hidden role="dialog" aria-label="Applications">
-  <div class="calc-top"><div class="calc-title"><b>Applications</b><span class="muted" style="color:#ffffffc0">Received → evaluated → BFP → assessed → paid → released</span></div>
+  <div class="calc-top"><div class="calc-title"><b>Applications</b><span class="muted" style="color:#ffffffc0">Received → document review → evaluated → BFP → assessed → paid → released</span></div>
     <div class="row"><button class="btn" id="apClose" aria-label="Close">✕</button></div></div>
   <div class="dash-body" id="appBody"></div>
 </div>
@@ -6401,7 +6419,7 @@ function appPayDates(a){let as=a.assessed||"",pd=a.paid||"";const x=a.assessId&&
   if(x){if(!as&&(+x.total||0)>0)as=x.date||"";if(!pd&&x.datePaid)pd=x.datePaid}return{as,pd}}
 function appInfo(a){const done=!!a.released;const{as:asD,pd:pdD}=appPayDates(a);const wait=!done&&!!asD&&!pdD;
   const wd=asD&&!isNM(a)?workDays(a.received,asD)+(pdD?workDays(pdD,a.released||""):0):workDays(a.received,a.released||"");const lim=isTower(a)?(APP_LIMIT.tower||7):isNM(a)?(APP_LIMIT.nmEP||3):APP_LIMIT[tierOf(a)];
-  const step=[...APP_STEPS].reverse().find(([k])=>a[k]);const aff=affOn(a);const missing=isNM(a)?nmInfo(a).miss:isTower(a)?twMissing(a):reqListFor(a).filter(r=>!REQ_OPTIONAL.test(r)&&!(aff&&REQ_POST.test(r))&&!(/^Affidavit of Undertaking/.test(r))&&!reqOn(a,r)).length+((a.kind||"BP")==="BP"?ownMissing(a):0);
+  const step=[...APP_STEPS].reverse().find(([k])=>a[k]);const aff=affOn(a);const missing=isNM(a)?nmInfo(a).miss:isTower(a)?twMissing(a):reqListFor(a).filter(r=>!REQ_OPTIONAL.test(r)&&!(aff&&REQ_POST.test(r))&&!(/^Affidavit of Undertaking/.test(r))&&!reqOn(a,r)).length+((a.kind||"BP")==="BP"?ownMissing(a):0)+wfDefCount(a);
   const post=isTower(a)||isNM(a)?null:postInfo(a);if(isNM(a)){const n=nmInfo(a);return{done:n.done,wd,lim,over:n.epOver||n.cfOver,late:false,step:a.cfeiIssued?"CFEI issued":a.cfeiReq?"CFEI in process":a.epIssued?"EP issued — installing":"EP in process",missing,post:null}}return{done,wd,lim,wait,over:!done&&!wait&&wd>lim,late:done&&wd>lim,step:wait?"Assessed — awaiting payment":pdD&&!a.released&&(!step||APP_STEPS.findIndex(z=>z[1]===step[1])<5)?"Paid":step?step[1]:"—",missing,post}}
 function appBadge(){alertsRefresh();const b=document.getElementById("appCount");if(!b)return;const n=APPS.filter(a=>appInfo(a).over).length;b.textContent=n||"";b.hidden=!n}
 /* ================= v1.2: permit corrections, posting lock, ancillary numbers, photos folder, occupancy from BP, alerts, search, QR check, staff report ================= */
@@ -7463,8 +7481,9 @@ async function importLgubpMdf(file){
   return LGUBP.build(T)}
 
 /* ================= Version, What's new, Help and printable user manual ================= */
-const APP_VERSION="1.3.1",APP_BUILD="2026-10-15";
+const APP_VERSION="1.4.0",APP_BUILD="2026-10-15";
 const WHATS_NEW=[
+ ["1.4.0 — 2026-10-15",["Applications: guided workflow with next step, assigned staff, internal follow-up date and processing history", "Document verification matrix: Received / Verified / Needs correction, optional applicability and correction remarks; links to existing checkboxes", "Print internal processing and document-verification report; dashboard includes next action and assigned staff", "Specialized tower and net-metering deadlines remain in their existing modules. No automatic permit issuing or payment confirmation."]],
  ["1.3.1 — 2026-10-15",["Assessment → Saved: delete an accidental UNPOSTED draft with a required reason. The final unused control number can be reclaimed safely; paid and posted records are protected."]],
  ["1.3 — 2026-10-14",["Field phones: Send to office / Load office data; the office computer loads field files from Drive › 10 Field automatically",
   "Checklist inspections per construction stage with a printed Inspection Report (with photos)",
@@ -7712,8 +7731,8 @@ async function saveHolidaysText(t){const L=[];String(t).split(/\n+/).forEach(l=>
 function appReqStatus(a){const L=[];
   if(isTower(a)){const q=a.twq||{};twItems(a).forEach(x=>L.push({t:twText(x,a),ok:!!q[x.id],opt:!!x.o}))}
   else if(isNM(a)){NM_EP.forEach(r=>L.push({t:r,ok:!!(a.nmEp||{})[r]}));if(a.cfeiReq)NM_CF.forEach(r=>L.push({t:"CFEI: "+r,ok:!!(a.nmCf||{})[r]}))}
-  else{const c=(a.kind||"BP")==="BP"?ownCase(a):null;if((a.kind||"BP")==="BP"){if(!c)L.push({t:"Proof of ownership / right over the lot",ok:false});else c.items.forEach(x=>L.push({t:x.t,ok:!!(a.oreq||{})[x.id],opt:!!x.o}))}
-    const aff=affOn(a);reqListFor(a).forEach(r=>L.push({t:r,ok:reqOn(a,r),opt:REQ_OPTIONAL.test(r)||/^Affidavit of Undertaking/.test(r),post:aff&&REQ_POST.test(r)}))}
+  else{const c=(a.kind||"BP")==="BP"?ownCase(a):null;if((a.kind||"BP")==="BP"){if(!c)L.push({t:"Proof of ownership / right over the lot",ok:false});else c.items.forEach(x=>L.push({t:x.t,ok:!!(a.oreq||{})[x.id]&&wfDocStatus(a,{key:"own:"+c.k+":"+x.id,received:!!(a.oreq||{})[x.id]})!=="deficient",opt:!!x.o}))}
+    const aff=affOn(a);reqListFor(a).forEach(r=>L.push({t:r,ok:reqOn(a,r)&&wfDocStatus(a,{key:"gen:"+r,received:reqOn(a,r)})!=="deficient",opt:REQ_OPTIONAL.test(r)||/^Affidavit of Undertaking/.test(r),post:aff&&REQ_POST.test(r)}))}
   return L}
 const appKindLabel=a=>({BP:"Building permit",TW:"Building permit — telecommunications tower (EO 32)",NM:"Net-metering — electrical permit and CFEI (JMC 001 s.2026)",OP:"Certificate of occupancy",FN:"Fencing permit",DE:"Demolition permit",SN:"Sign permit",GP:"Ground preparation / excavation permit",EL:"Electrical permit",OT:"Other"})[a.kind||"BP"]||a.kind;
 const appRef=a=>isTower(a)?"EO No. 32 and JMC No. 2023-01":isNM(a)?"DOE-DILG-DPWH JMC No. 001, s. 2026":"RA 11032 (Ease of Doing Business Act)";
@@ -7739,7 +7758,7 @@ function noticeHtml(a,kind,reasons){const L=appReqStatus(a),miss=L.filter(x=>!x.
    <p>Re: <b>${esc(appKindLabel(a))}</b> — Application No. <b>${esc(a.no)}</b>${a.project?`, ${esc(a.project)}`:""}, received ${esc(longDate(a.received)||"")}</p>
    <p>Dear Applicant:</p>
    ${def?`<p style="text-align:justify">After evaluation, your application lacks the following requirement(s) listed in the Citizen's Charter of this Office:</p>
-    <ol style="margin:4px 0;font-size:9.5pt">${miss.map(x=>`<li>${esc(x.t)}</li>`).join("")||"<li>(none)</li>"}</ol>
+    <ol style="margin:4px 0;font-size:9.5pt">${miss.map(x=>`<li>${esc(x.t)}${wfReviewNote(a,x.t)?`<br><b>Finding:</b> ${esc(wfReviewNote(a,x.t))}`:""}</li>`).join("")||"<li>(none)</li>"}</ol>
     <p style="text-align:justify">In accordance with ${esc(isTower(a)||isNM(a)?appRef(a)+" and Section 9 of RA 11032":"Section 9 of RA 11032 (Ease of Doing Business Act)")}, the processing time shall start only upon submission of the complete requirements. No other requirement will be asked of you beyond those listed above.</p>`
    :`<p style="text-align:justify">After evaluation, we regret to inform you that your application is <b>disapproved</b> for the following reason(s):</p><ol>${reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ol>
     <p style="text-align:justify">You may re-apply or submit the corrections above. For clarification, please approach this Office within office hours, quoting your application number. This notice is issued within the prescribed processing time pursuant to Section 9(c) of RA 11032. Within fifteen (15) days from receipt of this notice, you may appeal to the Secretary of Public Works and Highways (PD 1096 Sec. 307${isNM(a)?"; JMC 001 s. 2026, Sec. 9":""}).</p>`}
@@ -7765,24 +7784,119 @@ let APPED=null;
 function openApps(){$("#appEd").hidden=false;document.body.style.overflow="hidden";renderApps()}
 function renderApps(){const v=$("#appBody");if(APPED){renderAppForm();return}
   const q=toks(v.dataset.q||""),f=v.dataset.f||"open";
-  const L=APPS.filter(a=>{const i=appInfo(a);return(f==="all"||(f==="open"&&!i.done)||(f==="over"&&i.over)||(f==="done"&&i.done))&&(!q.length||q.every(t=>toks([a.no,a.name,a.project,a.brgy,a.permitNo].join(" ")).join(" ").includes(t)))})
+  const L=APPS.filter(a=>{const i=appInfo(a);return(f==="all"||(f==="open"&&!i.done)||(f==="over"&&i.over)||(f==="done"&&i.done)||(f==="needs"&&wfDefCount(a)>0))&&(!q.length||q.every(t=>toks([a.no,a.name,a.project,a.brgy,a.permitNo].join(" ")).join(" ").includes(t)))})
     .sort((x,y)=>(y.received||"").localeCompare(x.received||""));
   const st={open:APPS.filter(a=>!appInfo(a).done).length,over:APPS.filter(a=>appInfo(a).over).length,done:APPS.filter(a=>appInfo(a).done).length,late:APPS.filter(a=>appInfo(a).late).length};
   v.innerHTML=`<div class="dash-wrap" style="max-width:1100px">
    <div class="kpis">${kpi("In process",st.open,"applications not yet released","doc","var(--brand)")}${kpi("Over the time limit",st.over,`simple ${APP_LIMIT.simple} / complex ${APP_LIMIT.complex} / highly technical ${APP_LIMIT.technical} working days`,"warn","var(--bad)")}${kpi("Post-requirements overdue",APPS.filter(a=>(appInfo(a).post||{}).overdue).length,"clearances due 30 days after release","warn","var(--bad)")}${kpi("Released",st.done,`${st.late} released late`,"check","var(--ok)")}</div>
-   <div class="dash-filters"><button class="btn primary" id="apNew">+ New application</button><label>Show<select id="apF"><option value="open" ${f==="open"?"selected":""}>In process</option><option value="over" ${f==="over"?"selected":""}>Over the time limit</option><option value="done" ${f==="done"?"selected":""}>Released</option><option value="all" ${f==="all"?"selected":""}>All</option></select></label>
+   <div class="dash-filters"><button class="btn primary" id="apNew">+ New application</button><label>Show<select id="apF"><option value="open" ${f==="open"?"selected":""}>In process</option><option value="over" ${f==="over"?"selected":""}>Over the time limit</option><option value="done" ${f==="done"?"selected":""}>Released</option><option value="needs" ${f==="needs"?"selected":""}>Needs correction</option><option value="all" ${f==="all"?"selected":""}>All</option></select></label>
      <label style="flex:1 1 220px">Search<input id="apQ" type="search" value="${esc(v.dataset.q||"")}" placeholder="Name, project, app no., permit no."></label><button class="btn" id="apCsv">Export CSV</button><button class="btn" id="apCfg">Settings</button></div>
    ${(()=>{const y=appYear(),b=appBaseOf(y),bad=APPS.filter(a=>{const n=appSeq(a.no,y);return n&&n<=b});return bad.length?`<div class="dcard" style="border-color:var(--bad)"><b>${bad.length} application no.${bad.length>1?"s":""} overlap${bad.length>1?"":"s"} LGU-BP's ${y} series.</b> LGU-BP already has ${b} application(s) this year, so OBO-BPMS's numbers should start at ${appNoOf(y,b+1)}. <button class="btn small primary" id="apRenum">Renumber</button></div>`:""})()}
-   ${L.length?`<div class="tablewrap"><table class="dtable"><thead><tr><th style="text-align:left">App no.</th><th>Received</th><th style="text-align:left">Applicant</th><th style="text-align:left">Project</th><th>Stage</th><th>Working days</th><th>Requirements</th><th style="text-align:left">Permit</th></tr></thead><tbody>
+   ${L.length?`<div class="tablewrap"><table class="dtable"><thead><tr><th style="text-align:left">App no.</th><th>Received</th><th style="text-align:left">Applicant</th><th style="text-align:left">Project</th><th>Stage</th><th>Next action</th><th style="text-align:left">Assigned staff</th><th>Working days</th><th>Requirements</th><th style="text-align:left">Permit</th></tr></thead><tbody>
     ${L.map(a=>{const i=appInfo(a);return`<tr data-app="${a.id}" style="cursor:pointer"><td class="mono" style="text-align:left">${esc(a.no)}${a.pinId?' <span title="Pinned on the map">📍</span>':""}</td><td>${esc(a.received)}</td><td style="text-align:left;white-space:normal">${esc(a.name)}</td><td style="text-align:left;white-space:normal">${esc(a.project||"")}</td>
-      <td>${esc(i.step)}</td><td><span class="chip ${i.over||i.late?"s-none":i.done?"s-permit":i.wd>=i.lim-1?"s-verify":"s-assessed"}">${i.wd} / ${i.lim}${i.wait?" · awaiting payment":i.over?" · over":i.late?" · late":""}</span></td><td>${i.missing?`<span style="color:var(--bad)">${i.missing} missing</span>`:"complete"}</td><td class="mono" style="text-align:left">${esc(a.permitNo||"")}${i.post&&i.post.overdue?` <span class="chip s-none">post-req. overdue</span>`:""}</td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty">No applications${f!=="all"?" in this view":""}. Press <b>+ New application</b> when an application is received.</div>`}</div>`;
+      <td>${esc(i.step)}</td><td style="text-align:left;white-space:normal">${esc(wfNextText(a))}${a.wfDue?`<div class="muted" style="font-size:11px">Internal follow-up ${esc(a.wfDue)}</div>`:""}</td><td style="text-align:left">${esc(a.wfAssignee||"—")}</td><td><span class="chip ${i.over||i.late?"s-none":i.done?"s-permit":i.wd>=i.lim-1?"s-verify":"s-assessed"}">${i.wd} / ${i.lim}${i.wait?" · awaiting payment":i.over?" · over":i.late?" · late":""}</span></td><td>${i.missing?`<span style="color:var(--bad)">${i.missing} missing</span>`:"complete"}</td><td class="mono" style="text-align:left">${esc(a.permitNo||"")}${i.post&&i.post.overdue?` <span class="chip s-none">post-req. overdue</span>`:""}</td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty">No applications${f!=="all"?" in this view":""}. Press <b>+ New application</b> when an application is received.</div>`}</div>`;
   $("#apNew").onclick=async()=>{APPED={id:uid(),no:await nextAppNo(),received:today(),name:"",project:"",brgy:"",contact:"",kind:"BP",cx:"",req:{},remarks:"",created:nowISO()};renderApps()};
   $("#apRenum")&&($("#apRenum").onclick=renumberApps);
   $("#apF").onchange=e=>{v.dataset.f=e.target.value;renderApps()};$("#apQ").oninput=e=>{v.dataset.q=e.target.value;const p=e.target.selectionStart;renderApps();const q2=$("#apQ");q2.focus();q2.setSelectionRange(p,p)};
   v.querySelectorAll("[data-app]").forEach(r=>r.onclick=()=>{APPED=JSON.parse(JSON.stringify(APPS.find(a=>a.id===r.dataset.app)));renderApps()});
   $("#apCsv").onclick=()=>{if(!APPS.length)return toast("No applications yet");download(`applications-${stamp()}.csv`,csvOf(APPS.map(a=>{const i=appInfo(a);return{app_no:a.no,received:a.received,applicant:a.name,project:a.project||"",barangay:a.brgy||"",type:a.kind,complexity:tierOf(a),
-    ...Object.fromEntries(APP_STEPS.map(([k,l])=>[k,a[k]||""])),working_days:i.wd,limit:i.lim,status:i.done?(i.late?"released late":"released"):(i.over?"over limit":"in process"),ownership_case:(ownCase(a)||{}).l||"",post_requirements_due:(i.post||{}).due||"",post_requirements_submitted:a.postDone||"",missing_requirements:i.missing,permit_no:a.permitNo||"",remarks:a.remarks||""}})),"text/csv")};
+    ...Object.fromEntries(APP_STEPS.map(([k,l])=>[k,a[k]||""])),working_days:i.wd,limit:i.lim,status:i.done?(i.late?"released late":"released"):(i.over?"over limit":"in process"),ownership_case:(ownCase(a)||{}).l||"",post_requirements_due:(i.post||{}).due||"",post_requirements_submitted:a.postDone||"",missing_requirements:i.missing,verification_deficiencies:wfDefCount(a),next_action:wfNextText(a),assigned_staff:a.wfAssignee||"",internal_follow_up:a.wfDue||"",permit_no:a.permitNo||"",remarks:a.remarks||""}})),"text/csv")};
   $("#apCfg").onclick=async()=>{const s=prompt("Processing time limit in working days — simple, complex, highly technical (RA 11032: 3, 7, 20):",`${APP_LIMIT.simple},${APP_LIMIT.complex},${APP_LIMIT.technical}`);if(!s)return;const[a,b,c]=s.split(/[ ,]+/).map(Number);if(a>0&&b>0&&c>0){APP_LIMIT={simple:a,complex:b,technical:c};await DB.set("appLimit",APP_LIMIT);renderApps()}else toast("Enter three numbers, e.g. 3,7,20")}}
+/* ================= v1.4 Guided permit workflow + documentary verification ================= */
+/* Extra metadata lives within the existing APPS records, so old applications remain readable.
+   This module does NOT issue permits, mark payments verified or grant staff authorizations. */
+const WF_DOC_STATES=[['missing','Not received'],['received','Received · for review'],['verified','Verified'],['deficient','Needs correction'],['na','Not applicable']];
+const WF_MAIN_STAGES=[['received','Application received'],['wfDocReviewed','Document screening'],['evaluated','Technical evaluation'],['bfpOut','BFP endorsement'],['bfpIn','FSEC received'],['assessed','Fee assessment'],['paid','Payment recorded'],['released','Permit released']];
+function wfSteps(a){return WF_MAIN_STAGES.filter(([k])=>!['bfpOut','bfpIn'].includes(k)||(a.kind||'BP')==='BP')}
+function wfSpecial(a){return isNM(a)||isTower(a)}
+function wfDocRows(a){if(wfSpecial(a))return[];
+  const rows=[];
+  if((a.kind||'BP')==='BP'){
+    const c=ownCase(a);
+    if(c)c.items.forEach(x=>rows.push({key:'own:'+c.k+':'+x.id,label:x.t,source:'own',id:x.id,required:!x.o,received:!!(a.oreq||{})[x.id]}));
+  }
+  const aff=affOn(a);
+  reqListFor(a).forEach(r=>rows.push({key:'gen:'+r,label:r,source:'gen',required:!REQ_OPTIONAL.test(r)&&!/^Affidavit of Undertaking/.test(r)&&!(aff&&REQ_POST.test(r)),post:aff&&REQ_POST.test(r),received:reqOn(a,r)}));
+  return rows;
+}
+function wfDocRecord(a,row){return (a.wfDocs||{})[row.key]||{}}
+function wfDocStatus(a,row){const x=wfDocRecord(a,row);return x.status&&WF_DOC_STATES.some(z=>z[0]===x.status)?x.status:(row.received?'received':'missing')}
+function wfDocSummary(a){const r=wfDocRows(a),required=r.filter(x=>x.required),deficient=required.filter(x=>wfDocStatus(a,x)==='deficient');
+  return{all:r.length,required:required.length,verified:required.filter(x=>wfDocStatus(a,x)==='verified').length,
+    pending:required.filter(x=>wfDocStatus(a,x)!=='verified'),deficient,missing:required.filter(x=>wfDocStatus(a,x)==='missing')};}
+function wfStageDone(a,k){if(k==='wfDocReviewed')return !!a.wfDocReviewed||!!a.evaluated||!!a.bfpOut||!!a.bfpIn||!!a.assessed||!!a.paid||!!a.released;
+  return !!a[k]}
+function wfNext(a){if(wfSpecial(a))return null;return wfSteps(a).find(([k])=>!wfStageDone(a,k))||null}
+function wfNextText(a){if(wfSpecial(a))return 'Use specialized permit workflow';
+  const n=wfNext(a);return n?n[1]:'Process complete'}
+function wfLog(a,action,note){(a.wfHistory=a.wfHistory||[]).push({t:nowISO(),by:USER_NAME||CLOUD.user?.email||'(unnamed)',action,note:String(note||'').slice(0,250)});
+  if(a.wfHistory.length>100)a.wfHistory=a.wfHistory.slice(-100)}
+function wfStaffCandidates(){return (typeof STAFF!=='undefined'&&Array.isArray(STAFF)?STAFF:[]).map(x=>x.name).filter(Boolean)}
+function wfPanelHtml(a){const n=wfNext(a),ds=wfDocSummary(a),steps=wfSpecial(a)?[]:wfSteps(a),s=(a.wfAssignee||''),h=(a.wfHistory||[]).slice(-10).reverse();
+ const stageHtml=steps.map(([k,label])=>{const d=wfStageDone(a,k);return`<div class="wf-stage ${d?'done':n&&n[0]===k?'current':'pending'}"><b>${d?'✓ ':n&&n[0]===k?'→ ':'○ '}${esc(label)}</b><span class="muted">${esc(a[k]||((k==='wfDocReviewed'&&d)?'Recorded in earlier progress':'Not yet recorded'))}</span></div>`}).join('');
+ return `<div class="dcard" id="wfPanel"><h3>Guided Permit Workflow <span class="chip s-assessed">v1.4</span></h3>
+   <p class="wf-sub">Suggested actions from your existing dates and checklist. All official assessments, payments, approvals and releases remain manual and require their own records.</p>
+   ${wfSpecial(a)?`<p class="wf-alert">This permit type has its own statutory workflow in the existing form. Automated stage stamping is disabled here; assignment and activity history remain available.</p>`:`<div class="wf-chain">${stageHtml}</div>`}
+   <div class="wf-summary"><span>Next: <b>${esc(wfNextText(a))}</b></span><span>Required documents verified: <b>${ds.verified}/${ds.required}</b></span><span>Needs correction: <b>${ds.deficient.length}</b></span></div>
+   ${a.wfDue&&!a.released&&a.wfDue<isoToday()?`<p class="wf-alert">Internal follow-up is overdue (${esc(a.wfDue)}). Assign the next action or update the target date.</p>`:""}
+   ${ds.deficient.length?`<p class="wf-alert">Document deficiencies require attention: ${esc(ds.deficient.slice(0,3).map(x=>x.label).join('; '))}${ds.deficient.length>3?' …':''}</p>`:''}
+   <div class="grid2"><label class="f"><span>Staff assigned (internal coordination)</span><input id="wfAssignee" value="${esc(s)}" list="wfStaffList" placeholder="Name of responsible staff"><datalist id="wfStaffList">${wfStaffCandidates().map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist></label>
+   <label class="f"><span>Internal follow-up date (not statutory deadline)</span><input type="date" id="wfDue" value="${esc(a.wfDue||'')}"></label></div>
+   <div class="row" style="margin-top:9px;align-items:center">${!wfSpecial(a)&&n&&!['received','assessed','paid','released'].includes(n[0])?`<button class="btn primary" id="wfAdvance">Record: ${esc(n[1])}</button>`:''}
+   <button class="btn" id="wfPrint">Print processing & review sheet</button><span class="muted" style="font-size:12px">${n&&['assessed','paid','released'].includes(n[0])?'Record this milestone in the existing Progress/Assessment/Payment section, after actual verification.':''}</span></div>
+   <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700">Processing history (${(a.wfHistory||[]).length} events)</summary><div class="wf-hist">${h.length?h.map(x=>`<div><b>${esc(x.action)}</b> · ${esc((x.t||'').slice(0,16).replace('T',' '))} · ${esc(x.by||'')}<div class="muted">${esc(x.note||'')}</div></div>`).join(''):'No workflow events recorded yet.'}</div></details>
+ </div>`;
+}
+function wfReviewHtml(a){if(wfSpecial(a))return'';const rows=wfDocRows(a),s=wfDocSummary(a);
+ return `<div class="dcard" id="wfReview"><details><summary style="cursor:pointer;font-weight:700">Document verification matrix · ${s.verified}/${s.required} required verified · ${s.deficient.length} deficient</summary>
+   <p class="wf-sub">The existing checkboxes mean received; <b>Verified</b> means reviewed by staff. Selecting Received, Verified or Needs correction automatically ticks the corresponding original checklist. Files remain in Scanned documents and are not uploaded to Firestore.</p>
+   ${(a.kind||'BP')==='BP'&&!ownCase(a)?'<p class="wf-alert">Choose the proof-of-ownership case above so those documents are included in the review.</p>':''}
+   <div class="tablewrap"><table class="wf-review"><thead><tr><th>Document / requirement</th><th>Verification status</th><th>Correction remarks / reference</th></tr></thead><tbody>${rows.map((r,i)=>{const v=wfDocStatus(a,r),rec=wfDocRecord(a,r);
+     return `<tr><td>${!r.required?'<span class="muted">[Conditional / post]</span> ':''}${esc(r.label)}${rec.by?`<div class="muted" style="font-size:11px">Updated by ${esc(rec.by)} · ${esc((rec.at||'').slice(0,10))}</div>`:''}</td>
+       <td><select data-wfdoc="${i}" aria-label="Verification status">${WF_DOC_STATES.filter(x=>x[0]!=='na'||!r.required).map(([key,label])=>`<option value="${key}" ${v===key?'selected':''}>${esc(label)}</option>`).join('')}</select></td>
+       <td><input type="text" data-wfnote="${i}" value="${esc(rec.note||'')}" placeholder="Deficiency / reference"></td></tr>`}).join('')}</tbody></table></div>
+   <div class="row" style="margin-top:9px"><button class="btn" id="wfPrintReview">Print verification matrix</button><span class="muted" style="font-size:11.5px">Each changed status / remark saves immediately. Do not treat scanned files as verified until actually checked.</span></div>
+ </details></div>`;
+}
+function wfPrintHtml(a){const rows=wfDocRows(a),next=wfNext(a);return `<div class="rpage" style="padding:.55in .65in;font:10pt/1.45 Arial,sans-serif">${rptHead('APPLICATION PROCESSING & DOCUMENT VERIFICATION','OBO-BPMS · Internal staff working sheet')}
+  <p><b>Application:</b> ${esc(a.no)} &nbsp; <b>Applicant:</b> ${esc(a.name||'')}<br><b>Project:</b> ${esc(a.project||'')}<br><b>Barangay:</b> ${esc(a.brgy||'')} &nbsp; <b>Assigned staff:</b> ${esc(a.wfAssignee||'')}<br><b>Next step:</b> ${esc(next?next[1]:wfNextText(a))} &nbsp; <b>Follow-up date:</b> ${esc(a.wfDue||'')}</p>
+  <table style="border-collapse:collapse;width:100%;font-size:9pt"><thead><tr><th style="text-align:left;border:1px solid #888;padding:4px">Requirement</th><th style="text-align:left;border:1px solid #888;padding:4px">Status</th><th style="text-align:left;border:1px solid #888;padding:4px">Review remarks</th></tr></thead><tbody>
+  ${rows.map(r=>{const d=wfDocRecord(a,r);return`<tr><td style="text-align:left;border:1px solid #888;padding:4px;white-space:normal">${esc(r.label)}</td><td style="text-align:left;border:1px solid #888;padding:4px;white-space:normal">${esc(WF_DOC_STATES.find(x=>x[0]===wfDocStatus(a,r))?.[1]||'')}</td><td style="text-align:left;border:1px solid #888;padding:4px;white-space:normal">${esc(d.note||'')}</td></tr>`}).join('')}</tbody></table>
+  <p style="font-size:8pt">Internal worksheet only. Permit issuance and compliance conclusions require official review and approval.</p>${privacyHtml(8)}</div>`}
+function wfReviewNote(a,label){const map=a.wfDocs||{};const v=Object.entries(map).find(([k,x])=>x&&x.status==="deficient"&&(k==="gen:"+label||k.endsWith(":"+label)||wfDocRows(a).some(r=>r.label===label&&r.key===k)));return v&&v[1].note?String(v[1].note):""}
+function wfDefCount(a){return wfDocRows(a).filter(r=>r.required&&r.received&&wfDocStatus(a,r)==='deficient').length}
+async function wfPersist(a){if(!String(a.name||" ").trim()){toast("Enter the applicant and save the application before tracking workflow");return false}if(APPS.some(x=>x.id!==a.id&&x.no===a.no)){toast("Duplicate application number. Save a unique application first.");return false}await appSaveQuiet(a);return true}
+function wfBind(a,rerender){const p=document.getElementById('wfPanel');if(!p)return;
+ const assign=p.querySelector('#wfAssignee'),due=p.querySelector('#wfDue');
+ const meta=async(k,v,label)=>{const old=a[k]||'';if(old===v)return;if(!String(a.name||"").trim())return toast("Enter applicant and save the application first");a[k]=v;wfLog(a,label,`${old||'(none)'} → ${v||'(none)'}`);await wfPersist(a);audit('workflow-update',a.no,label);};
+ assign.onchange=()=>meta('wfAssignee',assign.value.trim(),'Assigned staff');due.onchange=()=>meta('wfDue',due.value,'Internal follow-up date');
+ const next=p.querySelector('#wfAdvance');if(next)next.onclick=async()=>{const stage=wfNext(a);if(!stage)return;if(!String(a.name||"").trim())return toast("Enter applicant and save the application first");const k=stage[0];if(['received','assessed','paid','released'].includes(k))return toast('Use the official record for this stage');
+  if(k==='wfDocReviewed'){
+   if((a.kind||'BP')==='BP'&&!ownCase(a))return alert('Choose the proof-of-ownership case and verify its applicable documents first.');
+   const pending=wfDocSummary(a).pending.filter(r=>!(/Fire Safety Evaluation Clearance/i).test(r.label));
+   if(pending.length)return alert(`Cannot mark document screening complete yet. ${pending.length} mandatory requirement(s) are not Verified in the verification matrix.\n\nExample: ${pending.slice(0,3).map(r=>r.label).join('; ')}\n\nSpecialized or inapplicable requirements must be reviewed individually.`);
+  }
+  if(!confirm(`Record "${stage[1]}" as completed TODAY (${today()}) for ${a.no}?\n\nThis updates the application record. It does not issue a permit or verify a payment.`))return;
+  a[k]=today();wfLog(a,stage[1],`Recorded ${today()}`);await wfPersist(a);audit('workflow-step',a.no,stage[1]);toast(stage[1]+' recorded');rerender();};
+ p.querySelector('#wfPrint').onclick=async()=>{if(!APPS.some(x=>x.id===a.id))await wfPersist(a);audit('workflow-print',a.no,'Internal processing sheet');printReport(wfPrintHtml(a))};
+ const r=document.getElementById('wfReview');if(!r)return;
+ const apply=async(index,status,note,changeType)=>{const row=wfDocRows(a)[index];if(!row)return;if(!String(a.name||'').trim())return toast('Enter applicant and save the application before document verification');
+   if(status==='na'&&row.required)return alert('Required document cannot be marked not applicable. Change the official checklist only if authorized.');
+   a.wfDocs=a.wfDocs||{};const old=wfDocStatus(a,row);const prev=wfDocRecord(a,row);let current=(status||old);
+   const received=['received','verified','deficient'].includes(current);
+   if(row.source==='gen')(a.reqL=a.reqL||{})[row.label]=received;
+   else (a.oreq=a.oreq||{})[row.id]=received;
+   a.wfDocs[row.key]={status:current,note:(note||'').slice(0,350),by:USER_NAME||'',at:nowISO()};
+   wfLog(a,'Document '+(changeType==='note'?'remark':'status'),row.label+' — '+current+(note?' · '+note.slice(0,80):''));
+   await wfPersist(a);audit('doc-review',a.no,row.label.slice(0,60)+' '+current);
+   // Update the summary while keeping the current details panel open and preserving scroll position.
+   const body=document.getElementById("appBody"),wasOpen=r.querySelector("details")?.open,scroll=body?.scrollTop||0;rerender();const now=document.getElementById("wfReview");if(now)now.querySelector("details").open=wasOpen;if(body)body.scrollTop=scroll;
+ };
+ r.querySelectorAll('[data-wfdoc]').forEach(sel=>sel.onchange=async()=>{const idx=+sel.dataset.wfdoc,n=r.querySelector(`[data-wfnote="${idx}"]`);await apply(idx,sel.value,n?n.value:'','status')});
+ r.querySelectorAll('[data-wfnote]').forEach(inp=>inp.onchange=async()=>{const idx=+inp.dataset.wfnote,sel=r.querySelector(`[data-wfdoc="${idx}"]`);await apply(idx,sel?sel.value:'',inp.value,'note')});
+ r.querySelector('#wfPrintReview').onclick=()=>{audit('doc-review-print',a.no,'Verification checklist');printReport(wfPrintHtml(a))};
+}
+
 function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.some(x=>x.id===a.id);
   const f=(k,l,t,ph)=>`<label class="f"><span>${l}</span><input data-ap="${k}" ${t?`type="${t}"`:""} value="${esc(a[k]||"")}" placeholder="${esc(ph||"")}"></label>`;
   v.innerHTML=`<div class="dash-wrap" style="max-width:900px"><div class="row"><button class="btn" id="apBack">← All applications</button><span class="mono" style="font-weight:700">${esc(a.no)}</span><span class="chip ${i.over?"s-none":i.done?"s-permit":"s-assessed"}">${i.wd} of ${i.lim} working days${i.wait?" — clock stopped, waiting for payment":i.over?" — over the limit":""}</span></div>
@@ -7795,6 +7909,7 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
     ${f("permitNo","Permit no. (when issued)")}</div></div>
    ${appPinCardHtml(a)}
    ${(a.kind||"BP")==="BP"||a.kind==="TW"?zcCardHtml(a):""}
+   ${wfPanelHtml(a)}
    <div class="dcard"><h3>Progress</h3><div class="steps">${APP_STEPS.map(([k,l])=>`<div class="stp ${a[k]?"on":""}"><span>${l}</span><input type="date" data-ap="${k}" value="${esc(a[k]||"")}"><button class="btn small" data-today="${k}">${a[k]?"✓":"Today"}</button></div>`).join("")}</div>
     <p class="sub" style="margin:4px 0 0">Working days count Monday–Friday from the date received; holidays are not excluded.</p></div>
    ${isNM(a)?nmCardHtml(a):""}${a.kind==="OP"?opCardHtml(a):""}${isTower(a)?towerCardHtml(a):""}${(a.kind||"BP")==="BP"?ownCardHtml(a):""}
@@ -7807,13 +7922,14 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
     <ul style="margin:0 0 6px 18px;font-size:13px">${i.post.items.map(r=>`<li>${esc(r)} ${reqOn(a,r)?"✓":""}</li>`).join("")}</ul>
     <label class="f" style="flex:0 0 auto;max-width:260px"><span>All post-requirements submitted on</span><input type="date" data-ap="postDone" value="${esc(a.postDone||"")}"></label></div>`:""}
    ${evalCardHtml(a)}
+   ${wfReviewHtml(a)}
    <div id="docsSlot"></div>
    <div class="dcard"><h3>Remarks</h3><textarea data-ap="remarks" rows="3">${esc(a.remarks||"")}</textarea></div>
    <div class="row"><button class="btn primary" id="apSave">Save</button><button class="btn" id="apAck" title="Two copies: applicant and office">Acknowledgment slip</button><button class="btn" id="apDef">Notice of incomplete requirements</button><button class="btn" id="apDis">Notice of disapproval</button><button class="btn" id="apMsg" title="Text or email the applicant">Message</button>${APP_ASSESS[a.kind||"BP"]?`<button class="btn" id="apAssess">${a.assessId?"Open assessment":"Create assessment"}</button>`:""}${isNew?"":`<button class="btn danger" id="apDel">Delete</button>`}</div></div>`;
-  v.querySelectorAll("[data-ap]").forEach(x=>x.addEventListener(x.tagName==="SELECT"||x.type==="date"?"change":"input",()=>{const k=x.dataset.ap;a[k]=x.value;if(k==="kind"&&x.value==="TW"){a.twOn=a.twOn||"ground";a.twHcp=a.twHcp||"aou"}if(x.type==="date"||k==="cx"||k==="own"||k==="kind"||k==="use"||/^tw/.test(k))renderAppForm()}));
-  v.querySelectorAll("[data-oreq]").forEach(c=>c.onchange=()=>{(a.oreq=a.oreq||{})[c.dataset.oreq]=c.checked;renderAppForm()});
+  v.querySelectorAll("[data-ap]").forEach(x=>x.addEventListener(x.tagName==="SELECT"||x.type==="date"?"change":"input",()=>{const k=x.dataset.ap,prior=a[k]||"";a[k]=x.value;if(APP_STEPS.some(([key])=>key===k)&&prior!==x.value)wfLog(a,"Progress date corrected",k+": "+(prior||"(none)")+" → "+(x.value||"(none)"));if(k==="kind"&&x.value==="TW"){a.twOn=a.twOn||"ground";a.twHcp=a.twHcp||"aou"}if(x.type==="date"||k==="cx"||k==="own"||k==="kind"||k==="use"||/^tw/.test(k))renderAppForm()}));
+  v.querySelectorAll("[data-oreq]").forEach(c=>c.onchange=()=>{(a.oreq=a.oreq||{})[c.dataset.oreq]=c.checked;if(a.wfDocs)delete a.wfDocs["own:"+a.own+":"+c.dataset.oreq];renderAppForm()});
   v.querySelectorAll("[data-today]").forEach(b=>b.onclick=()=>{const k=b.dataset.today;a[k]=a[k]?"":today();renderAppForm()});
-  v.querySelectorAll("[data-req]").forEach(c=>c.onchange=()=>{(a.reqL=a.reqL||{})[reqListFor(a)[+c.dataset.req]]=c.checked;renderAppForm()});
+  v.querySelectorAll("[data-req]").forEach(c=>c.onchange=()=>{const label=reqListFor(a)[+c.dataset.req];(a.reqL=a.reqL||{})[label]=c.checked;if(a.wfDocs)delete a.wfDocs["gen:"+label];renderAppForm()});
   if($("#reqAll"))$("#reqAll").onclick=()=>{a.reqL=a.reqL||{};reqListFor(a).forEach(r=>a.reqL[r]=true);const c=ownCase(a);if(c){a.oreq=a.oreq||{};c.items.forEach(x=>{if(!x.o)a.oreq[x.id]=true})}renderAppForm()};
   $("#reqOffice")&&($("#reqOffice").onclick=async()=>{if(!confirm("Replace the checklist with the OBO Santo Tomas Building Permit Requirement Checklist?"))return;REQ_LIST=REQ_DEFAULT2.slice();await DB.set("reqList",REQ_LIST);renderAppForm()});
   if($("#affPrint"))$("#affPrint").onclick=()=>{audit("print-affidavit",a.no,a.name||"");printReport(affidavitHtml(a))};
@@ -7823,6 +7939,7 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
   $("#apAck").onclick=async()=>{if(!await svA())return;audit("print-ack",a.no,a.name);printReport(ackHtml(a))};
   $("#apDef").onclick=async()=>{if(!await svA())return;a.defNotice=today();await saveApps();audit("print-deficiency",a.no,a.name);printReport(noticeHtml(a,"def"))};
   $("#apDis").onclick=async()=>{if(!await svA())return;const t=prompt("Reason(s) for disapproval — separate with | :",a.disReasons||"");if(!t)return;a.disReasons=t;a.disapproved=today();await saveApps();audit("print-disapproval",a.no,a.name);printReport(noticeHtml(a,"dis",t.split("|").map(x=>x.trim()).filter(Boolean)))};
+  wfBind(a,renderAppForm);
   if(isTower(a))bindTower(a,renderAppForm);if(isNM(a))bindNM(a,renderAppForm);if(a.kind==="OP")bindOP(a,renderAppForm);bindAppPin(a,renderAppForm);bindZc(a,renderAppForm);bindEval(a,renderAppForm);$("#apMsg").onclick=async()=>{if(!String(a.name||"").trim())return toast("Enter the applicant");await appSaveQuiet(a);openMsg(a)};
   docsCardHtml(a).then(h=>{const sl=document.getElementById("docsSlot");if(sl&&APPED===a){sl.innerHTML=h;bindDocs(a,renderAppForm)}}).catch(()=>{});
   $("#apBack").onclick=()=>{APPED=null;renderApps()};
