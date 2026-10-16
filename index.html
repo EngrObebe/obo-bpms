@@ -1164,6 +1164,7 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
       <button class="btn" id="btnGps" title="Find my location"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3 M12 19v3 M2 12h3 M19 12h3"/></svg>Where am I</button>
       <button class="btn" id="btnMeasure" aria-pressed="false" title="Measure building footprint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L18 4l2 2L6 20z M8 14l2 2 M11 11l2 2 M14 8l2 2"/></svg>Measure</button>
       <button class="btn" id="hazBtn" type="button" title="MGB hazard overlays and official HazardHunterPH link">⚠ Hazards</button>
+      <button class="btn" id="boundarySettingsBtn" type="button" title="Change barangay and municipal boundary colors, lines and thickness">⚙ Boundaries</button>
       <select id="goBrgy" class="btn" aria-label="Go to barangay" style="width:auto"></select>
     </div>
     <div class="hint" id="hint" hidden></div>
@@ -4161,6 +4162,33 @@ for(const [n,b] of Object.entries(BOUNDS.brgy)){
   L.marker(BRGY[n],{interactive:false,icon:L.divIcon({className:"pinlabel",html:`<span style="display:inline-block;transform:translate(-50%,-50%);font:700 11px var(--font-ui);color:#fff;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000;white-space:nowrap;letter-spacing:.03em">${n}</span>`,iconSize:[0,0]})}).addTo(brgyLayer);
 }
 const muniLayer=L.polygon(BOUNDS.muni,{color:"#ffffff",weight:3.8,opacity:.92,fill:false,interactive:false,dashArray:null}).addTo(map);
+/* Boundary appearance preferences — local display settings, never modifies official geometry. */
+(function setupBoundaryStyles(){
+ const KEY='obo_bpms_boundary_style_v1';
+ const defaults={brgy:{color:'#ffffff',weight:1.4,opacity:.52,style:'solid'},muni:{color:'#ffffff',weight:3.8,opacity:.92,style:'solid'}};
+ const validHex=v=>typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v);
+ function normalize(src){const out={};for(const kind of ['brgy','muni']){const v=src&&src[kind]||{},d=defaults[kind];out[kind]={color:validHex(v.color)?v.color:d.color,weight:Number.isFinite(+v.weight)?Math.min(10,Math.max(.5,+v.weight)):d.weight,opacity:Number.isFinite(+v.opacity)?Math.min(1,Math.max(.1,+v.opacity)):d.opacity,style:['solid','dashed','dotted'].includes(v.style)?v.style:d.style}}return out}
+ let cfg=normalize(null);
+ try{cfg=normalize(JSON.parse(localStorage.getItem(KEY)||'null'))}catch(e){}
+ function line(c){return {color:c.color,weight:c.weight,opacity:c.opacity,dashArray:c.style==='dashed'?'10 7':c.style==='dotted'?'2 7':null,lineCap:c.style==='dotted'?'round':'butt'}}
+ function apply(){
+  bndLayer.eachLayer(layer=>{if(layer.setStyle)layer.setStyle({...line(cfg.brgy),fillColor:cfg.brgy.color,fillOpacity:.015})});
+  muniLayer.setStyle({...line(cfg.muni),fill:false});
+ }
+ const panel=document.createElement('section');panel.id='boundarySettingsPanel';panel.hidden=true;
+ panel.style.cssText='position:absolute;z-index:1105;top:58px;left:12px;width:min(375px,calc(100vw - 24px));max-height:74vh;overflow-y:auto;padding:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:12px;box-shadow:0 10px 30px #0006;font:13px var(--font-ui)';
+ panel.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center"><b>Boundary Style Settings</b><button class="btn small" id="bsClose" type="button">Close</button></div><p class="muted" style="font-size:12px;margin:8px 0">Adjust map appearance only. Official boundary coordinates remain unchanged. Changes preview instantly.</p>${[['brgy','Barangay boundaries'],['muni','Municipal boundary']].map(([id,title])=>`<fieldset style="margin:10px 0;gap:9px"><legend>${title}</legend><label class="f"><span>Line type</span><select data-bs="${id}.style"><option value="solid">Continuous / Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label><label class="f"><span>Line color</span><input data-bs="${id}.color" type="color" style="width:100%;height:38px;padding:3px" /></label><label class="f"><span>Thickness: <b id="bs-${id}-weight"></b> px</span><input data-bs="${id}.weight" type="range" min="0.5" max="10" step="0.5" /></label><label class="f"><span>Opacity: <b id="bs-${id}-opacity"></b>%</span><input data-bs="${id}.opacity" type="range" min="10" max="100" step="5" /></label></fieldset>`).join('')}<div class="row"><button class="btn primary" type="button" id="bsSave">Save settings</button><button class="btn" type="button" id="bsReset">Reset default</button></div><p id="bsStatus" class="muted" role="status" style="font-size:12px;margin:6px 0 0">Saved on this browser only.</p>`;
+ document.querySelector('.mapwrap').appendChild(panel);
+ function render(){for(const kind of ['brgy','muni']){const c=cfg[kind];for(const key of ['style','color','weight','opacity']){const el=panel.querySelector(`[data-bs="${kind}.${key}"]`);if(el)el.value=key==='opacity'?Math.round(c.opacity*100):c[key]}panel.querySelector('#bs-'+kind+'-weight').textContent=c.weight;panel.querySelector('#bs-'+kind+'-opacity').textContent=Math.round(c.opacity*100)}apply()}
+ panel.querySelectorAll('[data-bs]').forEach(el=>el.addEventListener('input',()=>{const [kind,key]=el.dataset.bs.split('.');cfg[kind][key]=key==='weight'?+el.value:key==='opacity'?+el.value/100:el.value;render();panel.querySelector('#bsStatus').textContent='Unsaved changes — click Save settings to keep them.'}));
+ document.getElementById('boundarySettingsBtn').onclick=()=>{panel.hidden=!panel.hidden;if(!panel.hidden)render()};
+ panel.querySelector('#bsClose').onclick=()=>panel.hidden=true;
+ panel.querySelector('#bsSave').onclick=()=>{try{localStorage.setItem(KEY,JSON.stringify(cfg));panel.querySelector('#bsStatus').textContent='Saved for this browser.'}catch(e){panel.querySelector('#bsStatus').textContent='Could not save on this browser. Settings will reset on reload.'}};
+ panel.querySelector('#bsReset').onclick=()=>{cfg=normalize(null);render();try{localStorage.removeItem(KEY)}catch(e){}panel.querySelector('#bsStatus').textContent='Default settings restored.'};
+ // Existing boundary hover behavior must return to the currently selected style.
+ for(const pg of Object.values(brgyPoly)){pg.off('mouseover');pg.off('mouseout');pg.on('mouseover',()=>pg.setStyle({...line(cfg.brgy),weight:Math.min(10,cfg.brgy.weight+.5),opacity:Math.min(1,cfg.brgy.opacity+.2),fillOpacity:.08}));pg.on('mouseout',()=>pg.setStyle({...line(cfg.brgy),fillOpacity:.015}))}
+ render();
+})();
 overlays["Barangay boundary"]=bndLayer; layerCtl.addOverlay(bndLayer,"Barangay boundary");
 overlays["Municipal boundary"]=muniLayer; layerCtl.addOverlay(muniLayer,"Municipal boundary");
 overlays["Barangay (name)"]=brgyLayer; layerCtl.addOverlay(brgyLayer,"Barangay (name)");
