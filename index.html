@@ -4154,13 +4154,13 @@ for(const n of Object.keys(BOUNDS.brgy))BRGY[n]=labelPt(n);
 const bndLayer=L.layerGroup().addTo(map), brgyLayer=L.layerGroup().addTo(map);
 const brgyPoly={};
 for(const [n,b] of Object.entries(BOUNDS.brgy)){
-  const pg=L.polygon(b.rings,{color:"#ffd54a",weight:1.6,opacity:.95,fillColor:"#ffd54a",fillOpacity:.03}).addTo(bndLayer);
+  const pg=L.polygon(b.rings,{color:"#ffffff",weight:1.4,opacity:.52,fillColor:"#ffffff",fillOpacity:.015}).addTo(bndLayer);
   pg.bindTooltip(`<b>${n}</b><br>${b.ha.toLocaleString("en-PH")} ha`,{sticky:true,direction:"top",opacity:.92});
-  pg.on("mouseover",()=>pg.setStyle({fillOpacity:.14,weight:2.4})).on("mouseout",()=>pg.setStyle({fillOpacity:.03,weight:1.6}));
+  pg.on("mouseover",()=>pg.setStyle({fillOpacity:.08,weight:1.9,opacity:.78})).on("mouseout",()=>pg.setStyle({fillOpacity:.015,weight:1.4,opacity:.52}));
   brgyPoly[n]=pg;
   L.marker(BRGY[n],{interactive:false,icon:L.divIcon({className:"pinlabel",html:`<span style="display:inline-block;transform:translate(-50%,-50%);font:700 11px var(--font-ui);color:#fff;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000;white-space:nowrap;letter-spacing:.03em">${n}</span>`,iconSize:[0,0]})}).addTo(brgyLayer);
 }
-const muniLayer=L.polygon(BOUNDS.muni,{color:"#ff7a1a",weight:3.2,fill:false,interactive:false,dashArray:null}).addTo(map);
+const muniLayer=L.polygon(BOUNDS.muni,{color:"#ffffff",weight:3.8,opacity:.92,fill:false,interactive:false,dashArray:null}).addTo(map);
 overlays["Barangay boundary"]=bndLayer; layerCtl.addOverlay(bndLayer,"Barangay boundary");
 overlays["Municipal boundary"]=muniLayer; layerCtl.addOverlay(muniLayer,"Municipal boundary");
 overlays["Barangay (name)"]=brgyLayer; layerCtl.addOverlay(brgyLayer,"Barangay (name)");
