@@ -1164,6 +1164,7 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
       <button class="btn" id="btnGps" title="Find my location"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3 M12 19v3 M2 12h3 M19 12h3"/></svg>Where am I</button>
       <button class="btn" id="btnMeasure" aria-pressed="false" title="Measure building footprint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L18 4l2 2L6 20z M8 14l2 2 M11 11l2 2 M14 8l2 2"/></svg>Measure</button>
       <button class="btn" id="hazBtn" type="button" title="MGB hazard overlays and official HazardHunterPH link">⚠ Hazards</button>
+      <button class="btn" id="adplsBtn" type="button" title="Show Agoo-Damortis Protected Landscape and check locations">🌿 Protected Area</button>
       <button class="btn" id="boundarySettingsBtn" type="button" title="Change barangay and municipal boundary colors, lines and thickness">⚙ Boundaries</button>
       <select id="goBrgy" class="btn" aria-label="Go to barangay" style="width:auto"></select>
     </div>
@@ -4220,6 +4221,48 @@ function popupHtml(p){const s=statusOf(p);const r=p.permitNo&&regByNo(p.permitNo
   ${(()=>{const a=latestAssess(p.id);return a?`Assessment: <b>${peso(a.total)}</b> <span class="mono">${esc(a.ctrl)}</span><br>`:""})()}
   <span class="mono">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span><br>${gLinks(p.lat,p.lng)}<br>
   <button class="btn small primary" onclick="openForm('${p.id}')" style="margin-top:6px">Open / edit</button>`}
+
+
+/* ADPLS protected-area overlay, from supplied KMZ (not CLUP zoning). */
+(function setupAdplsScreening(){
+ const panel=document.createElement('section'); panel.hidden=true;panel.id='adplsPanel';
+ panel.style.cssText='position:absolute;z-index:1110;top:58px;left:12px;width:min(390px,calc(100vw - 24px));max-height:77vh;overflow:auto;padding:14px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px #0006;font-size:13px';
+ panel.innerHTML=`<div class="row" style="justify-content:space-between"><b>🌿 Protected Area · ADPLS</b><button type="button" class="btn small" id="adplsClose">Close</button></div>
+ <p style="font-size:12px" class="muted">Agoo-Damortis Protected Landscape &amp; Seascape · source: uploaded ADPLS_Proclaimed.kmz. Preliminary GIS reference, not a certified parcel survey or legal boundary determination.</p>
+ <label style="display:flex;gap:8px;align-items:center;margin:10px 0"><input id="adplsVisible" type="checkbox" style="width:auto" checked> Show protected-area polygon</label>
+ <div class="row"><button id="adplsFit" class="btn small">Zoom to protected area</button><button id="adplsPin" class="btn small primary">Check selected structure pin</button></div>
+ <fieldset style="margin:9px 0"><legend>Check a coordinate</legend><div class="row"><label class="f"><span>Latitude</span><input id="adplsLat" type="number" step="any" placeholder="16.xxxxxx"></label><label class="f"><span>Longitude</span><input id="adplsLng" type="number" step="any" placeholder="120.xxxxxx"></label></div><button type="button" class="btn small" id="adplsCheck">Check location</button></fieldset>
+ <div id="adplsResult" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-weight:600" role="status">Loading protected-area boundary…</div>
+ <p class="muted" style="font-size:11px">A point within the polygon does not establish that an entire lot is within it. Lot overlap requires verified parcel geometry and confirmation from the competent agency. Absence of intersection at one point does not establish that a whole lot is outside.</p>`;
+ document.querySelector('.mapwrap').appendChild(panel);
+ let feature=null,layer=null,clickMarker=null;
+ const result=panel.querySelector('#adplsResult');
+ function pointInRing(lat,lng,ring){let yes=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const x=ring[i][0],y=ring[i][1],xx=ring[j][0],yy=ring[j][1];if(((y>lat)!==(yy>lat))&&(lng<(xx-x)*(lat-y)/(yy-y)+x))yes=!yes;}return yes;}
+ function inGeom(lat,lng,geom){const groups=geom.type==='MultiPolygon'?geom.coordinates:geom.type==='Polygon'?[geom.coordinates]:[];
+ return groups.some(rings=>rings.length&&pointInRing(lat,lng,rings[0])&&!rings.slice(1).some(r=>pointInRing(lat,lng,r)));}
+ function check(lat,lng,source){if(!feature){result.textContent='Protected-area layer unavailable. Cannot assess location.';return;}
+ if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180){result.textContent='Enter valid latitude and longitude.';return;}
+ const inside=inGeom(lat,lng,feature.geometry);
+ result.innerHTML=(inside?'⚠ Within ADPLS reference polygon':'Outside ADPLS polygon at this POINT')+`<div style="font-size:11px;font-weight:400;margin-top:5px">${source} · ${lat.toFixed(6)}, ${lng.toFixed(6)}. Preliminary screening only; confirm legal boundaries with DENR/PAMB.</div>`;
+ result.style.borderColor=inside?'#b27700':'var(--line)';
+ panel.querySelector('#adplsLat').value=lat.toFixed(7);panel.querySelector('#adplsLng').value=lng.toFixed(7);
+ if(clickMarker)map.removeLayer(clickMarker);clickMarker=L.circleMarker([lat,lng],{radius:6,color:inside?'#f6b43b':'#ffffff',weight:3,fillColor:inside?'#b97712':'#3565d8',fillOpacity:1}).addTo(map);
+ }
+ fetch('adpls-proclaimed.geojson',{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(g=>{
+ feature=g.features&&g.features[0];if(!feature||!feature.geometry)throw Error('Invalid GeoJSON');
+ layer=L.geoJSON(g,{style:{color:'#28f0a0',weight:2.7,opacity:.97,fillColor:'#00be72',fillOpacity:.16},interactive:true});
+ layer.bindPopup('<b>Agoo-Damortis Protected Landscape &amp; Seascape</b><br>Source: user-supplied ADPLS_Proclaimed.kmz<br>Reference only; verify official boundaries.');
+ layer.addTo(map);overlays['ADPLS Protected Area']=layer;layerCtl.addOverlay(layer,'ADPLS Protected Area');
+ result.textContent='Boundary loaded. Choose a structure pin or input coordinates to check.';
+ }).catch(e=>{result.textContent='Could not load adpls-proclaimed.geojson ('+e.message+'). Upload this file alongside index.html in GitHub.'});
+ document.getElementById('adplsBtn').onclick=()=>{panel.hidden=!panel.hidden};
+ panel.querySelector('#adplsClose').onclick=()=>panel.hidden=true;
+ panel.querySelector('#adplsVisible').onchange=e=>{if(!layer)return;if(e.target.checked)layer.addTo(map);else map.removeLayer(layer)};
+ map.on('overlayadd overlayremove',e=>{if(e.layer===layer)panel.querySelector('#adplsVisible').checked=map.hasLayer(layer)});
+ panel.querySelector('#adplsFit').onclick=()=>{if(layer)map.fitBounds(layer.getBounds(),{padding:[25,25]});else result.textContent='Layer has not loaded.'};
+ panel.querySelector('#adplsCheck').onclick=()=>check(+panel.querySelector('#adplsLat').value,+panel.querySelector('#adplsLng').value,'Manual coordinate');
+ panel.querySelector('#adplsPin').onclick=()=>{if(typeof cur!=='undefined'&&cur&&Number.isFinite(+cur.lat)&&Number.isFinite(+cur.lng))check(+cur.lat,+cur.lng,'Selected structure pin');else result.textContent='Open a saved GIS structure pin first, then click Check selected structure pin.'};
+})();
 
 /* ---------- modes: pin + measure ---------- */
 let mode=null, draft=null, draftMarker=null, measurePts=[], measureLayer=L.layerGroup().addTo(map);
