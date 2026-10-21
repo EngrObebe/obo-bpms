@@ -1343,7 +1343,16 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
 <div class="dtip" id="dTip" hidden></div>
 <div id="formEd" class="calc" hidden role="dialog" aria-label="NBC forms">
   <div class="calc-top"><div class="calc-title"><b>NBC Forms</b><span class="muted" style="color:#ffffffc0">Your office's forms, filled from one encoding · edit before printing</span></div>
-    <div class="row"><button class="btn" id="fmReset">Refill</button><button class="btn" id="fmSave">Save</button><button class="btn primary" id="fmPrint">Print this form</button><button class="btn" id="fmClose" aria-label="Close">✕</button></div></div>
+    <div class="row" style="gap:7px">
+      <label style="font-size:11px;display:flex;align-items:center;gap:5px;color:#fff">Print mode
+        <select id="fmPrintMode" aria-label="NBC form printing mode" style="width:auto;padding:5px 7px;background:#fff;color:#172033">
+          <option value="full">Complete form</option><option value="ink">Inputs only (pre-printed paper)</option>
+        </select>
+      </label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;color:#fff" title="Move printed entries to the right/left in millimeters">X (mm)<input id="fmOffsetX" aria-label="Horizontal print offset millimeters" type="number" min="-15" max="15" step="0.5" value="0" style="width:62px;padding:5px 4px;background:#fff;color:#172033"></label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;color:#fff" title="Move printed entries down/up in millimeters">Y (mm)<input id="fmOffsetY" aria-label="Vertical print offset millimeters" type="number" min="-15" max="15" step="0.5" value="0" style="width:62px;padding:5px 4px;background:#fff;color:#172033"></label>
+      <button class="btn" id="fmReset">Refill</button><button class="btn" id="fmSave">Save</button><button class="btn primary" id="fmPrint">Print this form</button><button class="btn" id="fmClose" aria-label="Close">✕</button>
+    </div></div>
   <div class="fm-tabs" id="fmTabs"></div>
   <div class="op-body"><div class="op-ctl" id="fmCtl"></div><div class="op-prev" id="fmPrev"></div></div>
 </div>
@@ -5905,6 +5914,7 @@ function bindReport(C){const r=DV.rep;
 
 /* NBC form overlay renderer: page backgrounds + values positioned in points */
 function fmFit(t,s,w){if(!w)return s;const est=String(t).length*s*0.56;return est>w?Math.max(4.6,s*w/est):s}
+function fmPrintPrefs(){let p={mode:"full",x:0,y:0};try{p={...p,...JSON.parse(localStorage.getItem("obo-nbc-print-prefs-v1")||"{}")}}catch(e){};return {mode:p.mode==="ink"?"ink":"full",x:Number.isFinite(+p.x)?Math.max(-15,Math.min(15,+p.x)):0,y:Number.isFinite(+p.y)?Math.max(-15,Math.min(15,+p.y)):0}}
 function fmPageHtml(pg,bg,V,opt){opt=opt||{};let h="";
   for(const it of pg.items){const v=V[it.k];
     if(it.c){if(v)h+=`<b class="fmk" style="left:${it.x}pt;top:${it.y}pt">✓</b>`;continue}
@@ -5914,7 +5924,8 @@ function fmPageHtml(pg,bg,V,opt){opt=opt||{};let h="";
     let x=it.x;if(it.cols){const i=it.colk.findIndex(k=>V[k]);if(i>=0)x=it.cols[i]}
     const s0=it.s||9,s=fmFit(t,s0,it.w);
     h+=`<span class="fmv${it.a==="c"?" fmc":""}" style="left:${x}pt;top:${(it.y-s*0.95).toFixed(1)}pt;font-size:${s.toFixed(2)}pt">${fmEsc(t)}</span>`}
-  return`<div class="fmpage" style="width:${pg.w}pt;height:${pg.h}pt"><img class="fmbg" src="${bg}" alt="">${h}</div>`}
+  const onlyInk=opt.mode==="ink",dx=Number.isFinite(+opt.x)?Math.max(-15,Math.min(15,+opt.x)):0,dy=Number.isFinite(+opt.y)?Math.max(-15,Math.min(15,+opt.y)):0;
+  return`<div class="fmpage" style="width:${pg.w}pt;height:${pg.h}pt">${onlyInk?"":`<img class="fmbg" src="${bg}" alt="">`}<div class="fm-ink-layer" style="position:absolute;inset:0;transform:translate(${dx}mm,${dy}mm)">${h}</div></div>`}
 function fmEsc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 
 /* ---------- NBC application forms (Unified, ancillary permits, Sign, CFEI) ---------- */
@@ -6016,7 +6027,7 @@ function fmTotal(V){let t=0;FEE_ROWS.forEach(([k])=>{const v=+String(V[`fee.${k}
 async function openForms(src,fid){let saved={};try{const all=(await DB.get("formPackets"))||{};saved=all[src.key]||{}}catch(e){}
   const V=fmDefaults(src);const un=V._unmapped;delete V._unmapped;Object.assign(V,saved.V||{});fmTotal(V);
   FM={key:src.key,src,V,unmapped:un,fid:fid||saved.fid||"unified",saved:!!saved.V};$("#formEd").hidden=false;document.body.style.overflow="hidden";renderForms()}
-function fmPages(fid,V){return(FORM_SPECS[fid]||[]).map((pg,i)=>fmPageHtml(pg,FORM_BG[fid][i],V)).join("")}
+function fmPages(fid,V,opt){return(FORM_SPECS[fid]||[]).map((pg,i)=>fmPageHtml(pg,FORM_BG[fid][i],V,opt)).join("")}
 function fmKeysOf(fid){const ks=new Set();(FORM_SPECS[fid]||[]).forEach(pg=>pg.items.forEach(it=>ks.add(it.k)));return ks}
 function fmLabelOf(fid,k){for(const pg of FORM_SPECS[fid]||[])for(const it of pg.items)if(it.k===k&&it.l)return it.l;return FC_LABELS[k]||k}
 function fmIsChk(fid,k){for(const pg of FORM_SPECS[fid]||[])for(const it of pg.items)if(it.k===k)return!!it.c;return false}
@@ -6047,7 +6058,8 @@ function renderForms(){const fid=FM.fid,def=FORM_DEFS.find(d=>d.id===fid),V=FM.V
     <tr class="tot"><td>Total</td><td id="fmFeeTot">${esc(V["fee.total.amt"]||"")}</td><td colspan="2"></td></tr></tbody></table></div></div>`}
   {const w=credWarnings(V);if(w.length)h=`<div class="note" style="margin:0;border-color:var(--bad);color:var(--bad)"><b>Check credentials:</b> ${w.map(esc).join(" · ")}</div>`+h}
   $("#fmCtl").innerHTML=h;
-  const prev=()=>{$("#fmPrev").innerHTML=`<div class="fm-stack">${fmPages(fid,V)}</div>`;fmScale()};prev();
+  const prefs=fmPrintPrefs();$("#fmPrintMode").value=prefs.mode;$("#fmOffsetX").value=prefs.x;$("#fmOffsetY").value=prefs.y;
+  const prev=()=>{$("#fmPrev").innerHTML=`<div class="fm-stack">${fmPages(fid,V,fmPrintPrefs())}</div>`;fmScale()};prev();
   let tm=null;$("#fmCtl").querySelectorAll("[data-fv]").forEach(x=>x.addEventListener(x.type==="checkbox"?"change":"input",()=>{const k=x.dataset.fv;V[k]=x.type==="checkbox"?(x.checked?1:""):x.value;
     if(/^fee\./.test(k)){if(/\.amt$/.test(k)){const r=k.split(".")[1];V[`fee.${r}.on`]=x.value.trim()?1:""}fmTotal(V);const t=$("#fmFeeTot");if(t)t.textContent=V["fee.total.amt"]||""}
     clearTimeout(tm);tm=setTimeout(prev,120)}));
@@ -6065,7 +6077,10 @@ window.addEventListener("resize",()=>{if(FM&&!$("#formEd").hidden)fmScale()});
 $("#fmClose").onclick=()=>{const back=FM&&FM.back;$("#formEd").hidden=true;document.body.style.overflow="";FM=null;if(back==="app"){$("#appEd").hidden=false;document.body.style.overflow="hidden";renderApps()}};
 $("#fmSave").onclick=async()=>{try{const all=(await DB.get("formPackets").catch(()=>null))||{};all[FM.key]={V:FM.V,fid:FM.fid,updated:new Date().toISOString(),name:FM.V.oName||""};await DB.set("formPackets",all);FM.saved=true;toast("Forms saved")}catch(e){toast("Not saved: "+e.message)}};
 $("#fmReset").onclick=()=>{const V=fmDefaults(FM.src);FM.unmapped=V._unmapped;delete V._unmapped;FM.V=V;FM.saved=false;renderForms();toast("Refilled from the "+(FM.src.a?"assessment":"register")+" (press Save to keep)")};
-$("#fmPrint").onclick=()=>{{const w=credWarnings(FM.V);if(w.length&&!confirm("Credentials to check:\n• "+w.join("\n• ")+"\n\nPrint anyway?"))return}audit("print-form",FM.fid,FM.V.oName||"");const fid=FM.fid,pg=FORM_SPECS[fid][0];$("#printArea").innerHTML=`<div class="fm-print">${fmPages(fid,FM.V)}</div>`;setPageSize(`size:${pg.w}pt ${pg.h}pt;margin:0`);doPrint()};
+function fmSavePrintPrefs(){const p={mode:$("#fmPrintMode").value,x:Math.max(-15,Math.min(15,Number($("#fmOffsetX").value)||0)),y:Math.max(-15,Math.min(15,Number($("#fmOffsetY").value)||0))};localStorage.setItem("obo-nbc-print-prefs-v1",JSON.stringify(p));return p}
+["fmPrintMode","fmOffsetX","fmOffsetY"].forEach(id=>{$("#"+id).addEventListener("change",()=>{fmSavePrintPrefs();if(FM&&!$("#formEd").hidden)renderForms()})});
+$("#fmPrint").onclick=()=>{{const w=credWarnings(FM.V);if(w.length&&!confirm("Credentials to check:\n• "+w.join("\n• ")+"\n\nPrint anyway?"))return}const prefs=fmSavePrintPrefs();if(prefs.mode==="ink"&&!confirm("INPUTS ONLY: Load the correctly sized pre-printed NBC form in the printer. Set browser print Scale to 100%, margins None, and disable Fit to page. Print a calibration test on ordinary paper first. Continue?"))return;
+  audit("print-form",FM.fid+(prefs.mode==="ink"?" (inputs only)":""),FM.V.oName||"");const fid=FM.fid,pg=FORM_SPECS[fid][0];$("#printArea").innerHTML=`<div class="fm-print">${fmPages(fid,FM.V,prefs)}</div>`;setPageSize(`size:${pg.w}pt ${pg.h}pt;margin:0`);doPrint()};
 $("#cForms").onclick=()=>{if(!String(A.family||"").trim()){toast("Enter the applicant details first");return}openForms(fmSourceFromAssess(A))};
 
 const PDFLIB=()=>window.pdfjsLib||window["pdfjs-dist/build/pdf"];
