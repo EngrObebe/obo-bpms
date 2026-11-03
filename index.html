@@ -3991,7 +3991,7 @@ let assessCache=[];
 const latestAssess=pinId=>assessCache.filter(a=>a.pinId===pinId).sort((a,b)=>(b.updated||"").localeCompare(a.updated||""))[0];
 /* ---------- Shared data file: change stamping + two-way merge ---------- */
 const META_LOCAL=new Set(["inspector","user","lastBackup","pinLock","sharedHandle","backupDir","lastAutoBackup","docsDir","seenVersion","lastRestoreTest","_stamps","_tomb","_lastSync","_syncInfo","deviceId","photoDir","fieldDir","lastFieldSend"]);
-const META_COLL={certs:x=>x.id,coLog:x=>x.id,profs:x=>String(x.id),audit:x=>x.id,apps:x=>x.id,regPosted:x=>x.uid||(x.type+"|"+x.no),permitEdits:x=>x.id,caiLog:x=>x.id,fieldImported:x=>String(x),custom:x=>String(x)};
+const META_COLL={certs:x=>x.id,coLog:x=>x.id,profs:x=>String(x.id),audit:x=>x.id,apps:x=>x.id,regPosted:x=>x.uid||(x.type+"|"+x.no),permitEdits:x=>x.id,importRelease:x=>x.id,caiLog:x=>x.id,fieldImported:x=>String(x),custom:x=>String(x)};
 const META_MAP=new Set(["formPackets","psaOverrides"]);
 const nowISO=()=>new Date().toISOString();
 let USER_NAME="";
@@ -7990,19 +7990,24 @@ const appKindLabel=a=>({BP:"Building permit",TW:"Building permit — telecommuni
 const appRef=a=>isTower(a)?"EO No. 32 and JMC No. 2023-01":isNM(a)?"DOE-DILG-DPWH JMC No. 001, s. 2026":"RA 11032 (Ease of Doing Business Act)";
 function appDueText(a){const i=appInfo(a);if(isNM(a)){const n=nmInfo(a);return{lim:i.lim,due:n.epDue}}const due=a.received?workDue(a.received,i.lim):"";return{lim:i.lim,due}}
 function ackHtml(a){const L=appReqStatus(a),miss=L.filter(x=>!x.ok&&!x.opt&&!x.post),post=L.filter(x=>x.post),{lim,due}=appDueText(a),complete=!miss.length;
-  const half=copy=>`<div style="height:5.15in;box-sizing:border-box;padding:.25in .45in;position:relative;font-size:9.5pt;line-height:1.3">
+  // Print every missing documentary requirement in full on BOTH copies.
+  // Use one copy per sheet when the list is too long for the original half-page layout.
+  const separateCopies=miss.length>9 || miss.reduce((n,x)=>n+String(x.t||"").length,0)>950;
+  const half=copy=>`<div style="${separateCopies?"min-height:10.45in":"height:5.15in"};box-sizing:border-box;padding:${separateCopies?".35in .50in":".25in .45in"};position:relative;font-size:9.5pt;line-height:1.3">
    <div style="display:flex;align-items:center;gap:10px"><img src="${SEAL}" alt="" style="width:44px;height:44px"><div style="flex:1;line-height:1.2"><div style="font-size:8.5pt">Republic of the Philippines · Province of La Union</div><b>MUNICIPALITY OF SANTO TOMAS — OFFICE OF THE BUILDING OFFICIAL</b><div style="font-size:12pt;font-weight:700;margin-top:2px">ACKNOWLEDGMENT RECEIPT</div></div>
     <div style="text-align:center;font-size:7pt">${qrSvg(`OBO Santo Tomas | ${a.no} | ${a.name} | received ${a.received} | due ${due}`,70)}<div>${esc(copy)}</div></div></div>
    <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:9pt">${[["Application no.",`<b>${esc(a.no)}</b>`,"Date received",esc(longDate(a.received)||a.received||"")],["Applicant",`<b>${esc(a.name)}</b>`,"Contact no.",esc(a.contact||"")],
     ["Application for",esc(appKindLabel(a)),"Location",esc(a.brgy?a.brgy+", Santo Tomas":"")],["Project",esc(a.project||""),"Processing time",`${lim} working days`]].map(r=>`<tr><td style="text-align:left;border:1px solid #888;padding:2px 5px;width:17%;color:#444">${r[0]}</td><td style="text-align:left;border:1px solid #888;padding:2px 5px">${r[1]}</td><td style="text-align:left;border:1px solid #888;padding:2px 5px;width:15%;color:#444">${r[2]}</td><td style="text-align:left;border:1px solid #888;padding:2px 5px;width:23%">${r[3]}</td></tr>`).join("")}</table>
    ${complete&&isNM(a)&&!due?`<p style="margin:6px 0 2px"><b>Documentary requirements: COMPLETE.</b> The ${APP_LIMIT.nmEP||3}-working-day period starts upon payment of the fees (JMC 001 s. 2026, Sec. 6.4.1). If not acted upon within the period, this receipt and the official receipt serve as the basis for the Distribution Utility and the ERC (Sec. 6.4.3).</p>`
     :complete?`<p style="margin:6px 0 2px"><b>Documentary requirements: COMPLETE.</b> The application shall be acted upon on or before <b>${esc(longDate(due))}</b> (${lim} working days, excluding weekends and holidays), pursuant to ${esc(appRef(a))}.${isNM(a)?" If not acted upon within this period, the application is deemed approved; this receipt and the official receipt serve as the basis for the Distribution Utility and the ERC (Sec. 6.4.3).":""}</p>`
-    :`<p style="margin:6px 0 2px"><b>Documentary requirements: INCOMPLETE.</b> The processing time shall start only when the following are submitted:</p><ol style="margin:0 0 0 18px;padding:0;font-size:8.5pt">${miss.slice(0,9).map(x=>`<li>${esc(x.t.length>150?x.t.slice(0,147)+"…":x.t)}</li>`).join("")}${miss.length>9?`<li>and ${miss.length-9} more (see checklist)</li>`:""}</ol>`}
+    :`<p style="margin:6px 0 2px"><b>Documentary requirements: INCOMPLETE.</b> The processing time shall start only when the following are submitted:</p><ol style="margin:0 0 0 18px;padding:0;font-size:${separateCopies?"9pt":"8.5pt"};line-height:1.25">${miss.map(x=>`<li style="margin-bottom:2px;break-inside:avoid">${esc(x.t)}</li>`).join("")}</ol>`}
    ${post.length?`<p style="margin:4px 0 0;font-size:8.5pt">Post-requirements under the Affidavit of Undertaking, due 30 days after issuance: ${post.map(x=>esc(x.t.replace(/ if applicable.*$/i,"").replace(/ for critical.*$/i,""))).join("; ")}.</p>`:""}
    ${privacyHtml(6.3)}
    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8px"><div style="font-size:8pt;max-width:60%;color:#333">Keep this receipt. Follow-ups: quote the application no. Applications with complete requirements not acted upon within the prescribed period are deemed approved upon payment of fees (RA 11032, Sec. 10).</div>
     <div style="width:2.3in;text-align:center"><div style="border-bottom:1px solid #111;font-weight:700;min-height:14px">${esc(staffSig().name)}</div>Received by · ${esc(new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}))}</div></div></div>`;
-  return`<div class="rpage" style="padding:.2in .2in;font-family:Arial,Helvetica,sans-serif">${half("APPLICANT'S COPY")}<div style="border-top:1px dashed #888;margin:0 .3in"></div>${half("OFFICE COPY")}</div>`}
+  return separateCopies
+    ?`<div class="rpage" style="padding:.2in .2in;font-family:Arial,Helvetica,sans-serif">${half("APPLICANT'S COPY")}</div><div class="rpage" style="padding:.2in .2in;font-family:Arial,Helvetica,sans-serif">${half("OFFICE COPY")}</div>`
+    :`<div class="rpage" style="padding:.2in .2in;font-family:Arial,Helvetica,sans-serif">${half("APPLICANT'S COPY")}<div style="border-top:1px dashed #888;margin:0 .3in"></div>${half("OFFICE COPY")}</div>`}
 function noticeHtml(a,kind,reasons){const L=appReqStatus(a),miss=L.filter(x=>!x.ok&&!x.opt&&!x.post);const def=kind==="def";
   return`<div class="rpage" style="padding:.45in .75in;font:10pt/1.35 Arial,Helvetica,sans-serif;height:11in;overflow:hidden">${rptHead(def?"NOTICE OF INCOMPLETE REQUIREMENTS":"NOTICE OF DISAPPROVAL","")}
    <p style="text-align:right">${esc(longDate(today()))}</p>
@@ -8041,6 +8046,59 @@ function releaseState(a){
  if(a.permitNo)return {label:'Issued — for release review',note:a.permitNo};
  return {label:'Not yet released',note:''};
 }
+/* v1.7.8a: Imported LGU-BP records have no APPS lifecycle. Keep a separate factual release ledger. */
+let IR_ROWS=[],IR_FILTER='all',IR_QUERY='',IR_EDIT=null;
+const irKey=r=>String(r.type||'')+'|'+String(r.no||'');
+const irStatus=x=>x?.status||'unknown';
+const irLabel={unknown:'Not verified',ready:'Ready / unclaimed',claimed:'Released / claimed',hold:'Hold / under review'};
+async function importReleaseOpen(){
+  try{IR_ROWS=(await DB.get('importRelease'))||[]}catch(e){IR_ROWS=[]}
+  IR_FILTER='all';IR_QUERY='';IR_EDIT=null;renderImportedRelease();
+}
+function irRecord(r){return IR_ROWS.find(x=>x.id===irKey(r))||null}
+function irCandidates(){return REG.filter(r=>isPermitRec(r)&&r.src!=='app')}
+function renderImportedRelease(){
+  const v=$('#appBody');if(!v)return;
+  const candidates=irCandidates();
+  const filtered=candidates.filter(r=>{
+    const rec=irRecord(r),status=irStatus(rec);
+    const q=IR_QUERY.trim().toLowerCase();
+    return (IR_FILTER==='all'||status===IR_FILTER)&&(!q||[r.pno,r.no,r.name,r.brgy,r.project,r.type].join(' ').toLowerCase().includes(q));
+  });
+  v.innerHTML=`<div class="dash-wrap" style="max-width:1200px">
+   <div class="row" style="justify-content:space-between;align-items:center"><h2>Imported LGU-BP permits · Release Monitoring</h2><button class="btn" id="irBack">← Applications</button></div>
+   <p class="muted">These issued permit register records were imported from LGU-BP. Their original application workflow was not captured. No release or receipt status is presumed. Verify against signed receiving copies before recording actual handover.</p>
+   <div class="row" style="gap:8px"><label>Release status<select id="irFilter"><option value="all">All imported permits</option><option value="unknown">Not verified</option><option value="ready">Ready / unclaimed</option><option value="claimed">Released / claimed</option><option value="hold">Hold / under review</option></select></label><label style="flex:1">Search<input type="search" id="irSearch" placeholder="Permit no., owner, barangay" value="${esc(IR_QUERY)}"></label><button class="btn" id="irCsv">Export CSV</button></div>
+   <p class="muted">${candidates.length} imported permit records · ${candidates.filter(r=>irStatus(irRecord(r))==='claimed').length} recorded as claimed · ${candidates.filter(r=>irStatus(irRecord(r))==='unknown').length} not verified</p>
+   <div class="tablewrap"><table class="dtable"><thead><tr><th>Permit</th><th>Owner</th><th>Barangay</th><th>Date issued (register)</th><th>Release status</th><th>Actual release</th><th>Action</th></tr></thead><tbody>${filtered.slice(0,400).map(r=>{const x=irRecord(r);return `<tr><td>${esc(r.pno||r.no)}<div class="muted">${esc(r.type||'')}</div></td><td>${esc(r.name||'')}</td><td>${esc(r.brgy||'')}</td><td>${esc(r.date||'')}</td><td>${esc(irLabel[irStatus(x)])}</td><td>${esc(x?.releaseDate||'—')} ${esc(x?.releaseTime||'')}</td><td><button class="btn small" data-ir="${esc(irKey(r))}">View / Update</button></td></tr>`}).join('')}</tbody></table></div>
+   ${filtered.length>400?'<p class="muted">Showing first 400 matches. Narrow your search.</p>':''}
+   <div id="irEdit"></div></div>`;
+  $('#irBack').onclick=()=>renderApps();$('#irFilter').value=IR_FILTER;
+  $('#irFilter').onchange=e=>{IR_FILTER=e.target.value;renderImportedRelease()};
+  $('#irSearch').onchange=e=>{IR_QUERY=e.target.value;renderImportedRelease()};
+  $('#irCsv').onclick=()=>download('imported-permit-release-'+stamp()+'.csv',csvOf(candidates.map(r=>{const x=irRecord(r);return {permit_no:r.pno||r.no,permit_type:r.type,owner:r.name,barangay:r.brgy,issued_register:r.date,release_status:irLabel[irStatus(x)],release_date:x?.releaseDate||'',release_time:x?.releaseTime||'',recipient:x?.recipient||'',relationship:x?.relationship||'',released_by:x?.officer||'',evidence:x?.evidence||'',remarks:x?.remarks||''}})),'text/csv');
+  v.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{const r=candidates.find(x=>irKey(x)===b.dataset.ir);if(r)renderImportedReleaseEditor(r)});
+}
+function renderImportedReleaseEditor(r){
+ const old=irRecord(r)||{id:irKey(r),status:'unknown'};
+ const h=$('#irEdit');h.innerHTML=`<div class="dcard" style="margin-top:15px"><h3>Release record · ${esc(r.pno||r.no)}</h3><p class="muted">Imported historical permit. Issuance date is not the same as release date.</p>
+ <div class="row"><label>Recorded status<select id="irS"><option value="unknown">Not verified</option><option value="ready">Ready / unclaimed</option><option value="claimed">Released / claimed</option><option value="hold">Hold / under review</option></select></label>
+ <label>Actual release date<input type="date" id="irD" value="${esc(old.releaseDate||'')}"></label><label>Time<input type="time" id="irT" value="${esc(old.releaseTime||'')}"></label></div>
+ <div class="row"><label>Received by<input id="irRecipient" value="${esc(old.recipient||'')}"></label><label>Relationship / authorized representative<input id="irRelation" value="${esc(old.relationship||'')}"></label></div>
+ <div class="row"><label>Released by (staff)<input id="irOfficer" value="${esc(old.officer||'')}"></label><label>Receiving copy / proof reference<input id="irEvidence" value="${esc(old.evidence||'')}"></label></div>
+ <label>Remarks / source of verification<input id="irRemarks" value="${esc(old.remarks||'')}"></label>
+ <div class="row"><button class="btn primary" id="irSave">Save verified release status</button><button class="btn" id="irCancel">Cancel</button></div></div>`;
+ $('#irS').value=old.status||'unknown';$('#irCancel').onclick=()=>{h.innerHTML=''};
+ $('#irSave').onclick=async()=>{
+  const rec={id:irKey(r),status:$('#irS').value,releaseDate:$('#irD').value,releaseTime:$('#irT').value,recipient:$('#irRecipient').value.trim(),relationship:$('#irRelation').value.trim(),officer:$('#irOfficer').value.trim(),evidence:$('#irEvidence').value.trim(),remarks:$('#irRemarks').value.trim(),updatedAt:nowISO()};
+  if(rec.status==='claimed'&&(!rec.releaseDate||!rec.recipient||!rec.officer||!rec.evidence)){toast('Claimed requires actual date, recipient, staff and evidence reference');return}
+  if(rec.status!=='claimed'&&(rec.releaseDate||rec.releaseTime)){toast('Actual release date/time is allowed only for Released / claimed');return}
+  if(!confirm('Save the release verification record for '+(r.pno||r.no)+'? This does not change the original issued permit.'))return;
+  const i=IR_ROWS.findIndex(x=>x.id===rec.id);if(i>=0)IR_ROWS[i]=rec;else IR_ROWS.push(rec);
+  try{await DB.set('importRelease',IR_ROWS);audit('import-permit-release',rec.id+' · '+rec.status);toast('Release monitoring saved');renderImportedRelease()}
+  catch(e){toast('Save failed: '+e.message)}
+ };
+}
 function releaseReceiptHtml(a){return `<div style="font:12pt Arial,sans-serif;padding:20px;color:#111"><h2 style="text-align:center">OBO PERMIT RELEASE ACKNOWLEDGMENT</h2><p>Application No.: <b>${esc(a.no||'')}</b></p><p>Permit No.: <b>${esc(a.permitNo||'')}</b></p><p>Date / time released: <b>${esc(a.released||'')} ${esc(a.releaseTime||'')}</b></p><p>Received by: <b>${esc(a.releaseRecipient||'')}</b></p><p>Relationship / capacity: ${esc(a.releaseRelationship||'')}</p><p>Released by: ${esc(a.releaseOfficer||'')}</p><p>Remarks: ${esc(a.releaseRemarks||'')}</p><p style="margin-top:55px">________________________________<br>Signature of recipient</p><p style="font-size:10pt">This sheet documents actual physical release, not merely issuance or approval.</p></div>`}
 function renderApps(){const v=$("#appBody");if(APPED){renderAppForm();return}
   const q=toks(v.dataset.q||""),f=v.dataset.f||"open";
@@ -8049,12 +8107,13 @@ function renderApps(){const v=$("#appBody");if(APPED){renderAppForm();return}
   const st={open:APPS.filter(a=>!appInfo(a).done).length,over:APPS.filter(a=>appInfo(a).over).length,done:APPS.filter(a=>appInfo(a).done).length,late:APPS.filter(a=>appInfo(a).late).length};
   v.innerHTML=`<div class="dash-wrap" style="max-width:1100px">
    <div class="kpis">${kpi("In process",st.open,"applications not yet released","doc","var(--brand)")}${kpi("Over the time limit",st.over,`simple ${APP_LIMIT.simple} / complex ${APP_LIMIT.complex} / highly technical ${APP_LIMIT.technical} working days`,"warn","var(--bad)")}${kpi("Post-requirements overdue",APPS.filter(a=>(appInfo(a).post||{}).overdue).length,"clearances due 30 days after release","warn","var(--bad)")}${kpi("Released",st.done,`${st.late} released late`,"check","var(--ok)")}</div>
-   <div class="dash-filters"><button class="btn primary" id="apNew">+ New application</button><a class="btn" href="track.html" target="_blank" rel="noopener noreferrer">Public tracking portal ↗</a><label>Show<select id="apF"><option value="open" ${f==="open"?"selected":""}>In process</option><option value="over" ${f==="over"?"selected":""}>Over the time limit</option><option value="done" ${f==="done"?"selected":""}>Released</option><option value="unclaimed" ${f==="unclaimed"?"selected":""}>Ready / Unclaimed</option><option value="needs" ${f==="needs"?"selected":""}>Needs correction</option><option value="all" ${f==="all"?"selected":""}>All</option></select></label>
+   <div class="dash-filters"><button class="btn primary" id="apNew">+ New application</button><a class="btn" href="track.html" target="_blank" rel="noopener noreferrer">Public tracking portal ↗</a><button class="btn" id="impReleaseOpen">Imported permits · release log</button><label>Show<select id="apF"><option value="open" ${f==="open"?"selected":""}>In process</option><option value="over" ${f==="over"?"selected":""}>Over the time limit</option><option value="done" ${f==="done"?"selected":""}>Released</option><option value="unclaimed" ${f==="unclaimed"?"selected":""}>Ready / Unclaimed</option><option value="needs" ${f==="needs"?"selected":""}>Needs correction</option><option value="all" ${f==="all"?"selected":""}>All</option></select></label>
      <label style="flex:1 1 220px">Search<input id="apQ" type="search" value="${esc(v.dataset.q||"")}" placeholder="Name, project, app no., permit no."></label><button class="btn" id="apCsv">Export CSV</button><button class="btn" id="apCfg">Settings</button></div>
    ${(()=>{const y=appYear(),b=appBaseOf(y),bad=APPS.filter(a=>{const n=appSeq(a.no,y);return n&&n<=b});return bad.length?`<div class="dcard" style="border-color:var(--bad)"><b>${bad.length} application no.${bad.length>1?"s":""} overlap${bad.length>1?"":"s"} LGU-BP's ${y} series.</b> LGU-BP already has ${b} application(s) this year, so OBO-BPMS's numbers should start at ${appNoOf(y,b+1)}. <button class="btn small primary" id="apRenum">Renumber</button></div>`:""})()}
    ${L.length?`<div class="tablewrap"><table class="dtable"><thead><tr><th style="text-align:left">App no.</th><th>Received</th><th style="text-align:left">Applicant</th><th style="text-align:left">Project</th><th>Stage</th><th>Next action</th><th style="text-align:left">Assigned staff</th><th>Working days</th><th>Requirements</th><th style="text-align:left">Permit</th><th style="text-align:left">Release tracking</th></tr></thead><tbody>
     ${L.map(a=>{const i=appInfo(a);return`<tr data-app="${a.id}" style="cursor:pointer"><td class="mono" style="text-align:left">${esc(a.no)}${a.pinId?' <span title="Pinned on the map">📍</span>':""}</td><td>${esc(a.received)}</td><td style="text-align:left;white-space:normal">${esc(a.name)}</td><td style="text-align:left;white-space:normal">${esc(a.project||"")}</td>
       <td>${esc(i.step)}</td><td style="text-align:left;white-space:normal">${esc(wfNextText(a))}${a.wfDue?`<div class="muted" style="font-size:11px">Internal follow-up ${esc(a.wfDue)}</div>`:""}</td><td style="text-align:left">${esc(a.wfAssignee||"—")}</td><td><span class="chip ${i.over||i.late?"s-none":i.done?"s-permit":i.wd>=i.lim-1?"s-verify":"s-assessed"}">${i.wd} / ${i.lim}${i.wait?" · awaiting payment":i.over?" · over":i.late?" · late":""}</span></td><td>${i.missing?`<span style="color:var(--bad)">${i.missing} missing</span>`:"complete"}</td><td class="mono" style="text-align:left">${esc(a.permitNo||"")}${i.post&&i.post.overdue?` <span class="chip s-none">post-req. overdue</span>`:""}</td><td style="text-align:left">${esc(releaseState(a).label)}${releaseState(a).note?`<div class="muted">${esc(releaseState(a).note)}</div>`:""}</td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty">No applications${f!=="all"?" in this view":""}. Press <b>+ New application</b> when an application is received.</div>`}</div>`;
+  $("#impReleaseOpen").onclick=importReleaseOpen;
   $("#apNew").onclick=async()=>{APPED={id:uid(),no:await nextAppNo(),received:today(),name:"",project:"",brgy:"",contact:"",kind:"BP",cx:"",req:{},remarks:"",created:nowISO()};renderApps()};
   $("#apRenum")&&($("#apRenum").onclick=renumberApps);
   $("#apF").onchange=e=>{v.dataset.f=e.target.value;renderApps()};$("#apQ").oninput=e=>{v.dataset.q=e.target.value;const p=e.target.selectionStart;renderApps();const q2=$("#apQ");q2.focus();q2.setSelectionRange(p,p)};
