@@ -883,6 +883,8 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute
 .b1iss{position:relative;margin-top:.2in;height:1in;flex:0 0 auto}.b1pi{position:absolute;left:2.4in;top:0;font-family:"Rockwell Extra Bold","Alfa Slab One",Rockwell,Georgia,serif;font-size:12pt;font-weight:400}
 .b1sigw{position:absolute;left:50%;transform:translateX(-50%);top:.32in;text-align:center;line-height:1.25}.b1sig{border-bottom:1.2px solid #000;min-width:3.4in;padding:0 .1in 1px}.b1ti{font-family:"Rockwell Extra Bold","Alfa Slab One",Rockwell,Georgia,serif;font-weight:400;font-size:12pt}
 .b1terms{font-size:10.2pt;line-height:1.24;text-align:justify}.b1tt{font-size:13pt}.b1terms ol{margin:.12in 0 0;padding-left:.45in}.b1terms ol ol{margin-top:.02in;padding-left:.35in}.b1terms li{margin-bottom:.03in}.b1terms ol ol li{margin-bottom:.01in}
+.o01 .o1p{font-size:30pt}.o1box{margin-left:.1in}.o1top{justify-content:space-around;line-height:1.55}.o1p1{text-indent:0;margin:.08in 0 .02in;font-size:11pt}.o1rows{margin-left:1.3in;margin-right:1.3in;gap:.04in}.o01 .b1r{grid-template-columns:2.45in .18in minmax(0,1fr)}
+.o1t{margin:.03in 0 0;font-size:11pt;line-height:1.3;text-indent:.6in;text-align:justify}.o1bot{display:grid;grid-template-columns:2.4in 1fr 2.4in;align-items:center;margin-top:.1in}.o1post{border:1.5px solid #000;padding:.05in .08in;font-weight:700;font-size:9.5pt;text-align:center;line-height:1.2}.o1sig{text-align:center;line-height:1.25}
 .b1rev{text-align:center;font-family:"Rockwell Extra Bold","Alfa Slab One",Rockwell,Georgia,serif;font-size:9.5pt;line-height:1.3;margin-top:auto}
 .cv{color:var(--fill)}
 .cbo{font-size:12pt}
@@ -4788,7 +4790,7 @@ function renderCalc(){
       <label class="f"><span>FSEC No. (from BFP)</span><input data-k="fsecNo" class="mono" value="${esc(A.fsecNo||"")}" placeholder="R01-2026-0001"></label>
       <label class="f"><span>FSEC date</span><input data-k="fsecDate" type="date" value="${esc(A.fsecDate||"")}"></label>
       <label class="f"><span>Total project cost on permit (₱, if different from fixed cost)</span><input data-k="projCost" type="number" step="0.01" value="${esc(A.projCost||"")}" placeholder="${esc(String(R.totalCost||""))}"></label>
-      <label class="f wide"><span>Professional In Charge of Construction</span><input data-k="inCharge" value="${esc(A.inCharge||"")}" list="profFullListA" placeholder="ENGR. JUAN D. CRUZ"><datalist id="profFullListA">${PROFS.map(p=>`<option value="${esc(profFull(profLabel(p)))}">`).join("")}</datalist></label>
+      <label class="f wide"><span>Professional In Charge of Construction</span><input data-k="inCharge" value="${esc(A.inCharge||"")}" list="profFullListA" placeholder="ENGR. JUAN D. CRUZ"><datalist id="profFullListA">${PROFS.map(p=>`<option value="${esc(withIni(profFull(profLabel(p))))}">`).join("")}</datalist></label>
       <label class="f wide"><span>Remarks</span><input data-k="remarks" value="${esc(A.remarks)}"></label>
       </div>
       <div class="fr" style="border-radius:8px"><span>Payment stage (Order of Payment)</span><div class="row">${Object.entries(PAY_STAGES).map(([k,st])=>`<label class="pill"><input type="radio" name="r_stage" data-k="stage" value="${k}" ${(A.stage||"bp")===k?"checked":""}> ${esc(st.label)} <span class="muted">· ${esc(st.hint)}</span></label>`).join("")}</div></div>
@@ -5043,7 +5045,7 @@ $("#opPrint").onclick=async()=>{audit("print-op",A&&A.ctrl,A&&[A.family,A.first]
 $("#opSave").onclick=()=>$("#cSave").click();
 
 /* ---------- Certifications (copy of the LGU-BP / BP-FADRU layout) ---------- */
-const CERT_TYPES={bp:"Existence of a Building Permit",op:"Existence of an Occupancy Permit",co:"Certificate of Occupancy (NBC Form B-13)",acc:"Existence of an Accessory Permit",bp01:"Building Permit (NBC Form B-01B)",b17:"BFP Endorsement – Building Permit (B-17)",b18:"BFP Endorsement – Completion / Occupancy (B-18)"};
+const CERT_TYPES={bp:"Existence of a Building Permit",op:"Existence of an Occupancy Permit",co:"Certificate of Occupancy (NBC Form B-13)",op01:"Certificate of Occupancy (Santo Tomas)",acc:"Existence of an Accessory Permit",bp01:"Building Permit (NBC Form B-01B)",b17:"BFP Endorsement – Building Permit (B-17)",b18:"BFP Endorsement – Completion / Occupancy (B-18)"};
 const ACC_KINDS={SN:["SIGN PERMIT","          Sign Permit No: "],FN:["FENCING PERMIT","       Fencing Permit No: "],DE:["DEMOLITION PERMIT","    Demolition Permit No: "],SF:["SCAFFOLDING PERMIT","   Scaffolding Permit No: "],GP:["GROUND PREPARATION PERMIT","  Ground Prep. Permit No: "],SE:["SIDEWALK ENCLOSURE PERMIT","Sidewalk Encl. Permit No: "],SC:["SIDEWALK CONSTRUCTION PERMIT","Sidewalk Const Permit No: "]};
 const CO_SIGN=[["locz","Locational/Zoning"],["lg","Line and Grade"],["arch","Architectural"],["civ","Civil/Structural"],["elec","Electrical"],["mech","Mechanical"],["san","Sanitary"],["plb","Plumbing"],["elx","Electronics"],["int","Interior Design"],["acc","Accessibility"],["fire","Fire Safety"]];
 let CT=null;
@@ -5062,7 +5064,7 @@ function certFromReg(c,r){
   if(r.type&&r.type!=="BP"){c.type="acc";c.acc=r.type}
   if(r.op){Object.assign(c,{opNo:r.opNo||"",opDate:r.op.date||"",actualCost:r.op.cost||"",completion:r.op.completion||"",granted:r.op.full==="2"?"Partial Occupancy":"Full Occupancy",
     cocBy:r.op.prof||""})}
-  if(c.type==="op"||c.type==="co"){c.fees=r.op?(r.op.fees??""):"";c.orNo=r.op?(r.op.or||""):"";c.datePaid=r.op?(r.op.paid||""):""}
+  if(c.type==="op"||c.type==="co"||c.type==="op01"){c.fees=r.op?(r.op.fees??""):"";c.orNo=r.op?(r.op.or||""):"";c.datePaid=r.op?(r.op.paid||""):""}
   return c}
 async function openCert(c){CT=c||blankCert();if(!CT.bo)CT.bo=BO_NAME;if(!CT.boTitle)CT.boTitle=BO_TITLE;$("#certEd").hidden=false;document.body.style.overflow="hidden";renderCert()}
 window.openCert=openCert;
@@ -5163,6 +5165,29 @@ function b01Defaults(c,r){const cid=r.cls||0;Object.assign(c,{kind:c.kind||"NEW"
   bUse:(r.gen||GEN_UP(cid)||"").toUpperCase(),bGroup:(r.div||r.occ)?`GROUP ${r.div||r.occ}`:"",bScope:c.bScope||"NEW CONSTRUCTION",bCost:r.estCost??"",bProfSrc:r.supProf||"",bProf:profFull(r.supProf,false),
   dateIssued:dash(r.date||c.dateIssued),datePaid:dash(r.paid||c.datePaid),fsecNo:r.fsecNo||c.fsecNo||"",fsecDate:dash(r.fsecDate||c.fsecDate||"")});
   if(r.exempt){c.orNo="EXEMPTED"}return c}
+/* "(CE)" / "(AR)" after the professional in charge, taken from the PRC list */
+const nmKey=x=>String(x||"").toUpperCase().replace(/^(ENGR|ARCH|AR|ENG)\.?\s+/,"").replace(/\([^)]*\)/g,"").replace(/[^A-Z]/g,"");
+function profIniOf(name){const k=nmKey(name);if(!k)return"";for(const P of PROFS){const mi=P.middle?String(P.middle).trim()[0]:"";const c1=nmKey([P.first,mi,P.family].join(" ")),c2=nmKey([P.first,P.middle,P.family].join(" ")),c3=nmKey([P.first,P.family].join(" "));
+  if(k===c1||k===c2||k===c3)return P.ini||(/Architect/i.test(P.profession||"")?"(AR)":/Civil/i.test(P.profession||"")?"(CE)":"")}return""}
+function withIni(name){const s=String(name||"").trim();if(!s||/\([A-Za-z]{2,4}\)\s*$/.test(s))return s;const i=profIniOf(s);return i?`${s} ${i}`:s}
+function b01Back(c){const corners=`<i class="b1c tl"></i><i class="b1c tr"></i><i class="b1c bl"></i><i class="b1c br"></i>`;
+  const back=`<div class="cpage land b01 ${c.paper==="letter"?"letter":""}"><div class="b01in">${corners}<div class="b1terms"><b class="b1tt">TERMS AND CONDITIONS:</b><ol>
+   <li>The proposed construction/ erection/ addition/ alteration/ renovation/ conversion/ repair/ moving/ demolition, etc. subject of this Permit shall be in conformity with the provisions of the National Building Code of the Philippines (PD 1096), its Revised IRR, and other referral codes.</li>
+   <li>The Owner/ Permittee shall be responsible in undertaking the following, with the assistance of the concerned professionals hired/ commissioned by him:<ol type="a">
+    <li>That prior to commencement of the proposed project/s and construction, an actual relocation survey shall be conducted by a duly licensed Geodetic Engineer.</li>
+    <li>That before commencing the excavation the person making or causing the excavation to be made shall notify in writing the owner of adjoining property not less than ten (10) days before such excavation is to be made and show how the adjoining property should be protected.</li>
+    <li>That no person shall use or occupy a street, alley or public sidewalk for the performance of work covered by a building permit.</li>
+    <li>That no person shall perform any work on any building structure adjacent to a public way in general use for pedestrian travel unless the pedestrians are protected.</li>
+    <li>That the supervising Architect/Civil Engineer shall keep at the jobsite at all times a logbook of daily construction activities wherein the actual daily progress of construction including tests conducted, weather condition and other pertinent data are to be recorded, same shall be made available for scrutiny and comments by the OBO representative during the conduct of his/her inspection pursuant to Section 207 of the National Building Code of the Philippines.</li>
+    <li>That upon completion of the construction, the said licensed supervising Architect/Civil Engineer shall submit to the Building Official duly signed and sealed logbook, as-built plans and other documents and shall also prepare and submit a Certificate of Completion of the project stating that the construction of the building/structure conform to the provision of the Code, its IRR as well as the plans and specification.</li>
+    <li>All such changes, modification and alterations shall likewise be submitted to the Building Official and the subsequent amendatory permit therefore issued before any work on said changes, modifications and alteration shall be started. The as-built plans and specifications maybe just an orderly and comprehensive compilation of all documents which include the originally submitted plans and specifications of all amendments thereto as actually built or they may be an entirely new set of plans and specifications accurately describing and/or reflecting therein the building as actual built.</li>
+    <li>That no building/structure shall be used until the Building Official has issued a Certificate of Occupancy therefore as provided in the Code. However, a partial Certificate of Occupancy may be issued for the Use/Occupancy of a portion or portions of a building/structure prior to the completion of the entire building/structure.</li>
+    <li>When the construction is undertaken by contract, the work shall be done by a duly licensed and registered contractor pursuant to the provisions of the Contractor’s License Law (RA 4566).</li>
+    <li>The Owner/Permittee shall submit a duly accomplished prescribed “<b>Notice of Construction</b>” to the Office of the Building Official prior to any construction activity.</li>
+    <li>The Owner/Permittee shall put a Building Permit sign which complies with the prescribed dimensions and information, which shall remain posted on the activity.</li>
+    <li>The Owner/Permittee shall submit required clearances from other agencies as stipulated under Section 302 (12) b of Revised IRR of the NBCP and other documents or clearances from local authorities thirty (30) calendar days after the issuance of a building permit.</li></ol></li></ol></div>
+   <div class="b1rev">THIS PERMIT MAY BE CANCELLED OR REVOKED PURSUANT TO SECTION 207, 305 AND 306 OF THE NATIONAL BUILDING CODE OF THE PHILIPPINES (PD 1096)<br>AND ITS REVISED IRR</div></div></div>`;
+  return back}
 function b01Html(c){const ul=(v,w,cls)=>`<span class="b1v ${cls||""}" style="min-width:${w}">${v?`<span class="cv">${esc(v)}</span>`:"&nbsp;"}</span>`;
   const box=k=>`<span class="b1box">${c.kind===k?"✓":""}</span>${k}`;
   const corners=`<i class="b1c tl"></i><i class="b1c tr"></i><i class="b1c bl"></i><i class="b1c br"></i>`;
@@ -5184,26 +5209,11 @@ function b01Html(c){const ul=(v,w,cls)=>`<span class="b1v ${cls||""}" style="min
     <div class="b1r"><span class="b1k">Use or Character of Occupancy</span><span>:</span><span class="b1x">${ul(c.bUse,"2.3in")} and Classified as: ${ul(c.bGroup,"1.6in")}</span></div>
     <div class="b1r"><span class="b1k">Scope of Work</span><span>:</span>${ul(c.bScope,"100%","full")}</div>
     <div class="b1r"><span class="b1k">Total Project Cost</span><span>:</span>${ul(cost,"100%","full")}</div>
-    <div class="b1r"><span class="b1k">Professional In Charge of Construction</span><span>:</span>${ul(c.bProf,"100%","full")}</div></div>
+    <div class="b1r"><span class="b1k">Professional In Charge of Construction</span><span>:</span>${ul(withIni(c.bProf),"100%","full")}</div></div>
    <div class="b1iss"><b class="b1pi">PERMIT ISSUED BY:</b><div class="b1sigw"><div class="b1sig"><b>${esc(String(c.bo||"").toUpperCase())}</b></div><b class="b1ti">${esc(String(c.boTitle||BO_TITLE).toUpperCase())}</b><br><span style="font-size:8.5pt">(Signature over Printed Name)</span></div></div>
    <div class="b1rev">THIS PERMIT MAY BE CANCELLED OR REVOKED PURSUANT TO SECTION 207, 305 AND 306 OF THE NATIONAL BUILDING CODE OF THE PHILIPPINES (PD 1096)<br>AND ITS REVISED IRR</div>
   </div></div>`;
-  const back=`<div class="cpage land b01 ${c.paper==="letter"?"letter":""}"><div class="b01in">${corners}<div class="b1terms"><b class="b1tt">TERMS AND CONDITIONS:</b><ol>
-   <li>The proposed construction/ erection/ addition/ alteration/ renovation/ conversion/ repair/ moving/ demolition, etc. subject of this Permit shall be in conformity with the provisions of the National Building Code of the Philippines (PD 1096), its Revised IRR, and other referral codes.</li>
-   <li>The Owner/ Permittee shall be responsible in undertaking the following, with the assistance of the concerned professionals hired/ commissioned by him:<ol type="a">
-    <li>That prior to commencement of the proposed project/s and construction, an actual relocation survey shall be conducted by a duly licensed Geodetic Engineer.</li>
-    <li>That before commencing the excavation the person making or causing the excavation to be made shall notify in writing the owner of adjoining property not less than ten (10) days before such excavation is to be made and show how the adjoining property should be protected.</li>
-    <li>That no person shall use or occupy a street, alley or public sidewalk for the performance of work covered by a building permit.</li>
-    <li>That no person shall perform any work on any building structure adjacent to a public way in general use for pedestrian travel unless the pedestrians are protected.</li>
-    <li>That the supervising Architect/Civil Engineer shall keep at the jobsite at all times a logbook of daily construction activities wherein the actual daily progress of construction including tests conducted, weather condition and other pertinent data are to be recorded, same shall be made available for scrutiny and comments by the OBO representative during the conduct of his/her inspection pursuant to Section 207 of the National Building Code of the Philippines.</li>
-    <li>That upon completion of the construction, the said licensed supervising Architect/Civil Engineer shall submit to the Building Official duly signed and sealed logbook, as-built plans and other documents and shall also prepare and submit a Certificate of Completion of the project stating that the construction of the building/structure conform to the provision of the Code, its IRR as well as the plans and specification.</li>
-    <li>All such changes, modification and alterations shall likewise be submitted to the Building Official and the subsequent amendatory permit therefore issued before any work on said changes, modifications and alteration shall be started. The as-built plans and specifications maybe just an orderly and comprehensive compilation of all documents which include the originally submitted plans and specifications of all amendments thereto as actually built or they may be an entirely new set of plans and specifications accurately describing and/or reflecting therein the building as actual built.</li>
-    <li>That no building/structure shall be used until the Building Official has issued a Certificate of Occupancy therefore as provided in the Code. However, a partial Certificate of Occupancy may be issued for the Use/Occupancy of a portion or portions of a building/structure prior to the completion of the entire building/structure.</li>
-    <li>When the construction is undertaken by contract, the work shall be done by a duly licensed and registered contractor pursuant to the provisions of the Contractor’s License Law (RA 4566).</li>
-    <li>The Owner/Permittee shall submit a duly accomplished prescribed “<b>Notice of Construction</b>” to the Office of the Building Official prior to any construction activity.</li>
-    <li>The Owner/Permittee shall put a Building Permit sign which complies with the prescribed dimensions and information, which shall remain posted on the activity.</li>
-    <li>The Owner/Permittee shall submit required clearances from other agencies as stipulated under Section 302 (12) b of Revised IRR of the NBCP and other documents or clearances from local authorities thirty (30) calendar days after the issuance of a building permit.</li></ol></li></ol></div>
-   <div class="b1rev">THIS PERMIT MAY BE CANCELLED OR REVOKED PURSUANT TO SECTION 207, 305 AND 306 OF THE NATIONAL BUILDING CODE OF THE PHILIPPINES (PD 1096)<br>AND ITS REVISED IRR</div></div></div>`;
+  const back=b01Back(c);
   return front+(c.noBack?"":back)}
 function b01Fields(c,f){return `<div class="row" style="gap:6px">${["NEW","RENEWAL","AMENDATORY"].map(k=>`<label class="pill"><input type="radio" name="b1kind" data-c="kind" value="${k}" ${c.kind===k?"checked":""}> ${k}</label>`).join("")}</div>
   <div class="grid2">${f("permitNo","Building Permit No.","BP-1387-2610-0037")}${f("dateIssued","Date Issued","10-13-2026")}${f("orNo","Official Receipt No.")}${f("datePaid","Date Paid","10-13-2026")}
@@ -5211,11 +5221,51 @@ function b01Fields(c,f){return `<div class="row" style="gap:6px">${["NEW","RENEW
   ${f("name","Owner / Permittee","",1)}${f("project","Project Title","",1)}${f("bLot","Lot")}${f("bBlk","Blk.")}${f("bTct","TCT No.")}${f("bStreet","Street")}${f("bBrgy","Brgy.")}${f("bZip","ZIP Code","2505")}${f("bCity","City/Municipality","SANTO TOMAS, LA UNION",1)}
   ${f("bUse","Use or Character of Occupancy","RESIDENTIAL")}${f("bGroup","Classified as","GROUP A-1")}
   <label class="f wide"><span>Scope of Work</span><input data-c="bScope" value="${esc(c.bScope||"")}" list="scopeList"><datalist id="scopeList">${SCOPES.map(s=>`<option value="${s}">`).join("")}</datalist></label>
-  ${f("bCost","Total Project Cost (₱)","1500000")}<label class="f wide"><span>Professional In Charge of Construction</span><input data-c="bProf" value="${esc(c.bProf||"")}" list="profFullList" placeholder="ENGR. JUAN D. CRUZ"><datalist id="profFullList">${PROFS.map(p=>`<option value="${esc(profFull(profLabel(p)))}">`).join("")}</datalist></label></div>
+  ${f("bCost","Total Project Cost (₱)","1500000")}<label class="f wide"><span>Professional In Charge of Construction</span><input data-c="bProf" value="${esc(c.bProf||"")}" list="profFullList" placeholder="ENGR. JUAN D. CRUZ"><datalist id="profFullList">${PROFS.map(p=>`<option value="${esc(withIni(profFull(profLabel(p))))}">`).join("")}</datalist></label></div>
   <div class="row" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-c="noBack" style="width:auto" ${c.noBack?"checked":""}> Omit the Terms and Conditions (back page)</label>
    <label class="row" style="gap:6px">Paper: <select data-c="paper" style="width:auto"><option value="long" ${c.paper!=="letter"?"selected":""}>Long bond (8.5×13)</option><option value="letter" ${c.paper==="letter"?"selected":""}>Letter (8.5×11)</option></select></label></div>`}
 
-function certHtml(c){return c.type==="bp01"?b01Html(c):c.type==="co"?coHtml(c):(c.type==="b17"||c.type==="b18")?bfpHtml(c):certBoxHtml(c)}
+/* ---------- Certificate of Occupancy — Santo Tomas layout (same design as the Building Permit) ---------- */
+function o01Defaults(c,r){const op=(r&&r.op)||{};Object.assign(c,{type:"op01",granted:op.full==="2"?"Partial Occupancy":(c.granted||"Full Occupancy"),
+  opDate:dash(c.opDate||op.date||""),bpNo:c.bpNo||(r&&(r.pno||r.no))||"",bpDate:dash(c.bpDate||(r&&r.date)||""),completion:dash(c.completion||op.completion||""),
+  fsicNo:c.fsicNo||op.fsic||op.fsicNo||"",fsicDate:dash(c.fsicDate||op.fsicDate||""),datePaid:dash(c.datePaid||""),
+  occChar:String(c.occChar||(r&&r.gen)||"").toUpperCase(),group:String(c.group||(r&&(r.div||r.occ))||"").toUpperCase(),
+  location:String(c.location||"").toUpperCase().replace(/,\s*SANTO TOMAS$/,", SANTO TOMAS LA UNION")});return c}
+function o01Html(c){const ul=(v,w,cls)=>`<span class="b1v ${cls||""}" style="min-width:${w}">${v?`<span class="cv">${esc(v)}</span>`:"&nbsp;"}</span>`;
+  const part=c.granted==="Partial Occupancy";const box=on=>`<span class="b1box o1box">${on?"✓":""}</span>`;
+  const corners=`<i class="b1c tl"></i><i class="b1c tr"></i><i class="b1c bl"></i><i class="b1c br"></i>`;
+  const fee=c.exempt?"EXEMPTED":c.fees!==""&&c.fees!=null&&!isNaN(+c.fees)?"Php "+money(c.fees):(c.fees||"");
+  const qt=permitQrText(c);
+  const front=`<div class="cpage land b01 o01 ${c.paper==="letter"?"letter":""}">${qt?`<div class="cqr b01q">${qrSvg(qt,70)}</div>`:""}<div class="b01in">${corners}
+   <div class="b1hd"><img src="${SEAL}" alt=""><div class="b1t">Republic of the Philippines<br>Municipality of SANTO TOMAS<br>Province of La Union<div class="b1o">OFFICE OF THE BUILDING OFFICIAL</div></div><img src="${BPLOGO}" alt=""></div>
+   <div class="b1p o1p">CERTIFICATE OF OCCUPANCY</div>
+   <div class="b1k3">${box(!part)}FULL&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${box(part)}PARTIAL</div>
+   <div class="b1top o1top"><div><b>NO.</b> ${ul(c.opNo,"2.2in")}<br><b>DATE ISSUED:</b> ${ul(dash(c.opDate),"1.75in")}<br><b>FSIC NO.</b> ${ul(c.fsicNo,"2.0in")}<br><b>DATE ISSUED:</b> ${ul(dash(c.fsicDate),"1.75in")}</div>
+     <div><b>FEES PAID:</b> ${ul(fee,"2.1in")}<br><b>OFFICIAL RECEIPT NO.</b> ${ul(c.exempt?"EXEMPTED":c.orNo,"1.6in")}<br><b>DATE PAID:</b> ${ul(c.exempt?"":dash(c.datePaid),"2.1in")}</div></div>
+   <p class="b1p1 o1p1">This is to certify that the building/structure which has been designed and constructed conforms to the issued Building Permit No. ${ul(c.bpNo||c.permitNo,"1.75in")} dated ${ul(dash(c.bpDate||c.dateIssued),"1.05in")}.</p>
+   <div class="b1rows o1rows">
+    <div class="b1r"><span class="b1k">Name of Owner</span><span>:</span>${ul(c.name,"100%","full")}</div>
+    <div class="b1r"><span class="b1k">Name of Project</span><span>:</span>${ul(c.project,"100%","full")}</div>
+    <div class="b1r"><span class="b1k">Date of Completion</span><span>:</span>${ul(dash(c.completion),"100%","full")}</div>
+    <div class="b1r"><span class="b1k">Use or Character of Occupancy</span><span>:</span><span class="b1x">${ul(c.occChar,"2.6in")} Group: ${ul(c.group,"1.6in")}</span></div>
+    <div class="b1r"><span class="b1k">Located at / Along</span><span>:</span>${ul(c.location,"100%","full")}</div></div>
+   <p class="o1t">The Owner shall properly maintain the building/ structure to enhance its architectural well-being, structural stability, electrical, mechanical, sanitation, plumbing, electronics, interior design and fire-protective properties and shall not be occupied or used for purposes other than its intended use as stated above.</p>
+   <p class="o1t">This Certificate of Occupancy is hereby issued pursuant to Section 309 of the National Building Code of the Philippines (PD1096), its Revised IRR, other Referral Codes.</p>
+   <div class="o1bot"><div class="o1post">A certified copy hereof shall be posted within the premises of the building / structure and shall not be removed without authority from the Building Official</div>
+    <div class="o1sig"><div class="b1sig"><b>${esc(String(c.bo||"").toUpperCase())}</b></div><b class="b1ti">${esc(String(c.boTitle||BO_TITLE).toUpperCase())}</b><br><span style="font-size:8.5pt">(Signature over Printed Name)</span><br><span style="font-size:9pt">DATE: ${ul(dash(c.signDate),"1in")}</span></div></div>
+   <div class="b1rev">THIS PERMIT MAY BE CANCELLED OR REVOKED PURSUANT TO SECTION 207, 305 AND 306 OF THE NATIONAL BUILDING CODE OF THE PHILIPPINES (PD 1096)<br>AND ITS REVISED IRR</div>
+  </div></div>`;
+  return front+(c.noBack?"":b01Back(c))}
+function o01Fields(c,f){return `<div class="row" style="gap:6px">${["Full Occupancy","Partial Occupancy"].map(k=>`<label class="pill"><input type="radio" name="o1kind" data-c="granted" value="${k}" ${c.granted===k||(!c.granted&&k[0]==="F")?"checked":""}> ${k.split(" ")[0].toUpperCase()}</label>`).join("")}</div>
+  <div class="grid2">${f("opNo","Certificate No. (OP No.)","OP-1387-2611-0001")}${f("opDate","Date Issued","11-13-2026")}
+  <div class="row wide" style="grid-column:1/-1"><button class="btn small primary" id="cePostOp">Post occupancy permit (assign next OP No.)</button><span class="muted" style="font-size:12px">Logs it for the BFP list and the quarterly report</span></div>
+  ${f("fsicNo","FSIC No.","R-1-10317-5112717")}${f("fsicDate","FSIC Date Issued","11-13-2026")}${f("fees","Fees Paid (₱)","1700")}${f("orNo","Official Receipt No.")}${f("datePaid","Date Paid","11-13-2026")}
+  ${f("bpNo","Building Permit No.","BP-1387-2506-0021")}${f("bpDate","BP dated","06-23-2025")}
+  ${f("name","Name of Owner","",1)}${f("project","Name of Project","",1)}${f("completion","Date of Completion")}${f("signDate","Date under the signature","11-13-2026")}
+  ${f("occChar","Use or Character of Occupancy","RESIDENTIAL")}${f("group","Group","A-1")}${f("location","Located at / Along","DAMORTIS, SANTO TOMAS LA UNION",1)}</div>
+  <div class="row" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-c="exempt" style="width:auto" ${c.exempt?"checked":""}> EXEMPTED</label><label class="row" style="gap:6px"><input type="checkbox" data-c="noBack" style="width:auto" ${c.noBack?"checked":""}> Omit the Terms and Conditions (back page)</label>
+   <label class="row" style="gap:6px">Paper: <select data-c="paper" style="width:auto"><option value="long" ${c.paper!=="letter"?"selected":""}>Long bond (8.5×13)</option><option value="letter" ${c.paper==="letter"?"selected":""}>Letter (8.5×11)</option></select></label></div>`}
+function certHtml(c){return c.type==="bp01"?b01Html(c):c.type==="op01"?o01Html(c):c.type==="co"?coHtml(c):(c.type==="b17"||c.type==="b18")?bfpHtml(c):certBoxHtml(c)}
 /* ---------- editor ---------- */
 function renderCert(){const c=CT;
   const f=(k,l,ph,wide)=>`<label class="f ${wide?"wide":""}"><span>${l}</span><input data-c="${k}" value="${esc(c[k]??"")}" placeholder="${esc(ph||"")}"${/Prof|cocBy/.test(k)?' list="profList"':""}></label>`;
@@ -5243,21 +5293,21 @@ function renderCert(){const c=CT;
   else extra=`<h3>Certification signature and payment</h3><div class="grid2"><label class="f"><span>Issued this (date)</span><input type="date" data-c="issue" value="${esc(c.issue)}"></label>${f("certOr","Certification OR No.")}${f("certDate","Certification date paid")}${f("certAmount","Amount (₱)","50.00")}</div>`;
   $("#ceCtl").innerHTML=`<div><h3>Certification type</h3><div class="row" style="gap:6px">${typeBtns}</div></div>
    <div><h3>Get data from Permit Register</h3><input id="cePick" type="search" placeholder="Search: name, permit no., project" aria-label="Search permits"><div id="cePickList"></div>${c.regNo?`<p class="muted" style="font-size:12px;margin:4px 0 0">From register: <span class="mono">${esc(c.permitNo||c.regNo)}</span>. You can still edit below.</p>`:""}</div>
-   ${c.type==="bp01"?`<div><h3>Building Permit data</h3>${b01Fields(c,f)}</div>`:(c.type==="b17"||c.type==="b18")?`<div><h3>Endorsement data</h3>${bfpFields(c,f)}</div>`:`<div><h3>Details</h3>${flds}</div><div>${extra}</div>`}
+   ${c.type==="bp01"?`<div><h3>Building Permit data</h3>${b01Fields(c,f)}</div>`:c.type==="op01"?`<div><h3>Certificate of Occupancy data</h3>${o01Fields(c,f)}</div>`:(c.type==="b17"||c.type==="b18")?`<div><h3>Endorsement data</h3>${bfpFields(c,f)}</div>`:`<div><h3>Details</h3>${flds}</div><div>${extra}</div>`}
    <div><h3>Header and signature</h3><div class="grid2">${f("town","Header line 2")}${f("prov","Header line 3")}${f("bo","Signatory name","",1)}${f("boTitle","Designation","Acting Building Official",1)}</div></div>`;
   $("#cePrev").innerHTML=certHtml(c);
   const C=$("#ceCtl"),rp=()=>$("#cePrev").innerHTML=certHtml(c);
   const bt=$("#bfpToday");if(bt)bt.onclick=()=>{c.dRef=mdy(today());renderCert()};
-  C.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{c.type=b.dataset.ct;if(c.regNo){const r=regByNo(c.regNo);if(r){certFromReg(c,r);c.type=b.dataset.ct;if(c.type==="bp01")b01Defaults(c,r)}}renderCert()});
+  C.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{c.type=b.dataset.ct;if(c.regNo){const r=regByNo(c.regNo);if(r){certFromReg(c,r);c.type=b.dataset.ct;if(c.type==="bp01")b01Defaults(c,r);if(c.type==="op01")o01Defaults(c,r)}}renderCert()});
   C.querySelectorAll("[data-c]").forEach(x=>{const ev=x.type==="checkbox"||x.tagName==="SELECT"?"change":"input";x.addEventListener(ev,()=>{c[x.dataset.c]=x.type==="checkbox"?x.checked:x.value;if(x.dataset.c==="acc"||x.type==="checkbox"||x.type==="radio")renderCert();else rp()})});
   C.querySelectorAll("[data-sig]").forEach(x=>x.oninput=()=>{c.sig=c.sig||{};c.sig[x.dataset.sig]=x.value;rp()});
   $("#cePick").oninput=()=>{const q=toks($("#cePick").value);const want=c.type==="acc"?(r=>r.type!=="BP"):(r=>r.type==="BP");
     const L_=q.length?REG.filter(r=>r.k==="permit"&&want(r)).filter(r=>q.every(t=>toks([r.name,r.pno,r.no,r.project,r.brgy].join(" ")).join(" ").includes(t)||String(r.pno||"").includes(t))).slice(0,8):[];
     $("#cePickList").innerHTML=L_.map(r=>`<div class="item" data-pk="${esc(r.no)}" data-pt="${esc(r.type)}"><div class="t"><b>${esc(r.name)}</b><span class="mono">${esc(r.pno||r.no)}</span></div><div class="meta">${esc(r.date)} · ${esc(r.brgy||"")} · ${esc(r.project||"")}${r.op?" · may OP":""}</div></div>`).join("")||(q.length?`<div class="muted" style="font-size:12.5px;padding:6px 0">No matches.</div>`:"");
-    $("#cePickList").querySelectorAll("[data-pk]").forEach(x=>x.onclick=()=>{const r=REG.find(y=>y.no===x.dataset.pk&&y.type===x.dataset.pt);const t=c.type;certFromReg(c,r);if(t!=="acc"||r.type!=="BP")c.type=r.type!=="BP"?"acc":t;if(c.type==="bp01")b01Defaults(c,r);renderCert();toast("Data loaded for "+(r.pno||r.no))})};
+    $("#cePickList").querySelectorAll("[data-pk]").forEach(x=>x.onclick=()=>{const r=REG.find(y=>y.no===x.dataset.pk&&y.type===x.dataset.pt);const t=c.type;certFromReg(c,r);if(t!=="acc"||r.type!=="BP")c.type=r.type!=="BP"?"acc":t;if(c.type==="bp01")b01Defaults(c,r);if(c.type==="op01")o01Defaults(c,r);renderCert();toast("Data loaded for "+(r.pno||r.no))})};
 }
 function setPageSize(css){let st=document.getElementById("pgsz");if(!st){st=document.createElement("style");st.id="pgsz";document.head.appendChild(st)}st.textContent=css?`@media print{@page{${css}}}`:""}
-$("#cePrint").onclick=()=>{const c=CT;audit("print-cert",(c.type||"")+" "+(c.permitNo||c.opNo||""),c.name||"");$("#printArea").innerHTML=certHtml(c);setPageSize(c.type==="bp01"?(c.paper==="letter"?"size:11in 8.5in;margin:0":"size:13in 8.5in;margin:0"):(c.type==="co")?"size:11in 8.5in;margin:0":"size:8.5in 11in;margin:0");doPrint()};
+$("#cePrint").onclick=()=>{const c=CT;audit("print-cert",(c.type||"")+" "+(c.permitNo||c.opNo||""),c.name||"");$("#printArea").innerHTML=certHtml(c);setPageSize(c.type==="bp01"||c.type==="op01"?(c.paper==="letter"?"size:11in 8.5in;margin:0":"size:13in 8.5in;margin:0"):(c.type==="co")?"size:11in 8.5in;margin:0":"size:8.5in 11in;margin:0");doPrint()};
 $("#ceSave").onclick=async()=>{try{const L=(await DB.get("certs").catch(()=>null))||[];CT.updated=new Date().toISOString();const i=L.findIndex(x=>x.id===CT.id);if(i>=0)L[i]=JSON.parse(JSON.stringify(CT));else L.push(JSON.parse(JSON.stringify(CT)));await DB.set("certs",L);toast("Certification saved");audit("save-cert",CT.permitNo||CT.opNo||"",CT.name||"")}catch(e){toast("Not saved: "+e.message)}};
 $("#ceList").onclick=async()=>{const L=((await DB.get("certs").catch(()=>null))||[]).sort((a,b)=>(b.updated||"").localeCompare(a.updated||""));
   $("#cePickList").innerHTML=L.length?`<div class="muted" style="font-size:12px;margin:6px 0">Saved certifications:</div><div class="list">${L.map(x=>`<div class="item" data-cid="${x.id}"><div class="t"><b>${esc(x.name||"(no name)")}</b><span class="muted" style="font-size:11.5px">${esc(CERT_TYPES[x.type])}</span></div><div class="meta">${esc(x.permitNo||x.opNo||"")} · ${esc((x.updated||"").slice(0,10))}</div></div>`).join("")}</div>`:`<div class="muted" style="font-size:12.5px">Nothing saved yet.</div>`;
@@ -5630,7 +5680,7 @@ function bplCsv(){const ym=DV.repMonth;const L=bplRows(ym);if(!L.length)return t
 async function coAll(){const L=[];const seen=new Set();const add=x=>{const k=(x.opNo||"")+"|"+(x.name||"");if(seen.has(k))return;seen.add(k);L.push(x)};
   (REPCFG.coLog||[]).forEach(x=>add({...x,src:"log"}));
   let certs=[];try{certs=(await DB.get("certs"))||[]}catch(e){}
-  certs.filter(c=>(c.type==="op"||c.type==="co")&&c.opNo).forEach(c=>add({id:c.id,opNo:c.opNo,date:c.opDate||c.issue||"",name:c.name,bpNo:c.bpNo||c.permitNo||"",project:c.project||"",location:c.location||"",occupancy:c.occChar||c.occupancy||"",src:"cert"}));
+  certs.filter(c=>(c.type==="op"||c.type==="co"||c.type==="op01")&&c.opNo).forEach(c=>add({id:c.id,opNo:c.opNo,date:c.opDate||c.issue||"",name:c.name,bpNo:c.bpNo||c.permitNo||"",project:c.project||"",location:c.location||"",occupancy:c.occChar||c.occupancy||"",src:"cert"}));
   REG.filter(r=>r.op&&r.opNo).forEach(r=>add({opNo:r.opNo,date:r.op.date||"",name:r.name,bpNo:r.pno||r.no,project:r.project,location:r.loc||r.brgy,occupancy:r.div||"",src:"reg"}));
   return L}
 let CO_CACHE=[];
@@ -6804,7 +6854,7 @@ function opCardHtml(a){const r=bpOfApp(a);
 function bindOP(a,rerender){const i=document.querySelector('#appBody [data-ap="bpNo"]');if(i)i.addEventListener("change",()=>{const r=bpOfApp(a);if(r){if(!a.name)a.name=r.name;if(!a.project)a.project=r.project||"";if(!a.brgy)a.brgy=r.brgy||""}setTimeout(rerender,0)});
   const b=$("#apCO");if(b)b.onclick=async()=>{if(!String(a.name||"").trim())return toast("Enter the applicant");a.updated=nowISO();const k=APPS.findIndex(x=>x.id===a.id);if(k>=0)APPS[k]=a;else APPS.push(a);await saveApps();
     const r=bpOfApp(a);const c=r?certFromReg(blankCert("co"),r):blankCert("co");if(!r)Object.assign(c,{name:fmUp(a.name),project:a.project||"",location:(a.brgy?a.brgy+", ":"")+"Santo Tomas",bpNo:a.bpNo||""});
-    c.type="co";c.appId=a.id;c.dateSubmitted=a.received||"";$("#appEd").hidden=true;APPED=null;openCert(c)}}
+    c.type="op01";if(r)o01Defaults(c,r);c.appId=a.id;c.dateSubmitted=a.received||"";$("#appEd").hidden=true;APPED=null;openCert(c)}}
 
 /* ---- Application ↔ map pin ---- */
 let APP_PIN_FOR=null;
@@ -8445,9 +8495,9 @@ async function postOccupancy0(c){if(SYNC.handle&&SYNC.ok)await syncNow(true);if(
 /* ================= QR codes ================= */
 function qrSvg(text,px){try{const q=qrcode(0,"M");q.addData(String(text).normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\x20-\x7E\n]/g,""));q.make();const n=q.getModuleCount();
   let d="";for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+=`M${c},${r}h1v1h-1z`;return`<svg viewBox="-2 -2 ${n+4} ${n+4}" width="${px||72}" height="${px||72}" shape-rendering="crispEdges"><rect x="-2" y="-2" width="${n+4}" height="${n+4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`}catch(e){return""}}
-function permitQrText(c){const no=c.type==="op"||c.type==="co"?c.opNo:c.permitNo;if(!no)return"";
+function permitQrText(c){const occT=c.type==="op"||c.type==="co"||c.type==="op01";const no=occT?c.opNo:c.permitNo;if(!no)return"";
   const pub=APPS.find(a=>a.pvPermit?.enabled&&a.pvPermit.no===no&&a.pvPermit.token);if(pub)return pvUrl("permit",pub.pvPermit.token);
-  return[`OBO SANTO TOMAS, LA UNION`,`${({bp:"BUILDING PERMIT",bp01:"BUILDING PERMIT",op:"OCCUPANCY PERMIT",co:"CERTIFICATE OF OCCUPANCY",acc:"PERMIT"})[c.type]||"PERMIT"} ${no}`,`ISSUED ${c.type==="op"||c.type==="co"?c.opDate||"":c.dateIssued||""}`,`TO ${fmUp(c.name||"")}`,c.project?fmUp(c.project):"",c.location?fmUp(c.location):"",`CODE ${pcode(no,c.name)}`,`VERIFY WITH THE OFFICE OF THE BUILDING OFFICIAL`].filter(Boolean).join("\n")}
+  return[`OBO SANTO TOMAS, LA UNION`,`${({bp:"BUILDING PERMIT",bp01:"BUILDING PERMIT",op:"OCCUPANCY PERMIT",co:"CERTIFICATE OF OCCUPANCY",op01:"CERTIFICATE OF OCCUPANCY",acc:"PERMIT"})[c.type]||"PERMIT"} ${no}`,`ISSUED ${occT?c.opDate||"":c.dateIssued||""}`,`TO ${fmUp(c.name||"")}`,c.project?fmUp(c.project):"",c.location?fmUp(c.location):"",`CODE ${pcode(no,c.name)}`,`VERIFY WITH THE OFFICE OF THE BUILDING OFFICIAL`].filter(Boolean).join("\n")}
 
 /* ================= NOV / WSO letters ================= */
 let LT=null;
