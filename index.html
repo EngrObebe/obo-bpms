@@ -4834,7 +4834,7 @@ async function ctrlGuard(){
     if(r&&!confirm(`Control no. ${c} was already used in LGU-BP for ${r.name} (${r.no}).\nSave with this number anyway?`))return false;
     return true}
   /* new assessment: same applicant + project already saved? */
-  const o=assessCache.find(a=>a.id!==A.id&&a.ctrl&&same(a.family,a.first,a.project));
+  const o=assessCache.find(a=>a.id!==A.id&&a.ctrl&&((A.appId&&a.appId===A.appId)||(A.pinId&&a.pinId===A.pinId&&normS(a.family)===fam)||same(a.family,a.first,a.project)));
   if(o){const nt=opLines().total,ot=+o.total||0;
     if((o.posted||o.orNo)&&Math.abs(nt-ot)>0.005&&!confirm(`WARNING: assessment no. ${o.ctrl} is already ${o.posted?"posted ("+(o.posted.pno||"")+")":"paid"} at ${peso(ot)}.\nThis one totals ${peso(nt)} — updating will REPLACE the saved fee lines.\n\nOK = replace anyway\nCancel = go back (nothing is saved)`))return false;
     if(confirm(`${o.family}${o.first?", "+o.first:""} already has assessment no. ${o.ctrl}${o.project?" ("+o.project+")":""} — ${peso(ot)}.\nThis one: ${peso(nt)}.\n\nOK = update that assessment (keep no. ${o.ctrl}; its figures will be replaced by this one)\nCancel = save as a NEW assessment with a new number`)){
@@ -5390,7 +5390,13 @@ function postPreview(){const d=new Date();const yy=d.getFullYear()%100,mm=d.getM
   const no=A._postNo!=null?A._postNo:N.next;
   return{pt,yy,mm,no,N,pno:`${pt}-${TOWN_CODE}-${String(yy).padStart(2,"0")}${String(mm).padStart(2,"0")}-${String(no).padStart(4,"0")}`}}
 function postProblems(){const p=[];if(!String(A.family||"").trim())p.push("Applicant surname is missing.");if(!(+A.a0>=1))p.push("Structure units must be 1 or more.");
-  if(!A.exempted&&!String(A.orNo||"").trim())p.push("Official Receipt No. is required (or tick EXEMPTED).");if(A.posted)p.push("Already posted as "+A.posted.pno+".");return p}
+  if(!A.exempted&&!String(A.orNo||"").trim())p.push("Official Receipt No. is required (or tick EXEMPTED).");if(A.posted)p.push("Already posted as "+A.posted.pno+".");
+  if(!A.posted&&!A.exempted&&!(opLines().total>0))p.push("The total assessment is ₱0.00 — open the assessment that has the fees.");
+  if(!A.posted){const sib=assessCache.find(x=>x.id!==A.id&&!x.posted&&(+x.total||0)>0&&((A.appId&&x.appId===A.appId)||(A.pinId&&x.pinId===A.pinId)));
+    if(sib)p.push(`Assessment no. ${sib.ctrl} (${peso(sib.total)}) for the same applicant is not yet posted — post that one instead, or delete it first.`);
+    const o=String(A.orNo||"").trim();const dup=o&&assessCache.find(x=>x.id!==A.id&&String(x.orNo||"").trim()===o);
+    if(dup)p.push(`OR No. ${o} is already on assessment no. ${dup.ctrl}.`)}
+  return p}
 function postPanelHtml(){if(A.posted)return `<div class="posted"><b>Posted: <span class="mono">${esc(A.posted.pno)}</span></b><span class="muted">Posted on ${esc(A.posted.date)}. A posted assessment can no longer be changed, same as in LGU-BP.</span></div>`;
   if(!A._posting)return "";const P=postPreview(),probs=postProblems();
   return `<div class="postbox"><b>Post ${esc(PT_LABEL[P.pt])}</b>
