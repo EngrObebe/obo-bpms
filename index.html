@@ -5045,7 +5045,7 @@ $("#opPrint").onclick=async()=>{audit("print-op",A&&A.ctrl,A&&[A.family,A.first]
 $("#opSave").onclick=()=>$("#cSave").click();
 
 /* ---------- Certifications (copy of the LGU-BP / BP-FADRU layout) ---------- */
-const CERT_TYPES={bp:"Existence of a Building Permit",op:"Existence of an Occupancy Permit",co:"Certificate of Occupancy (NBC Form B-13)",op01:"Certificate of Occupancy (Santo Tomas)",acc:"Existence of an Accessory Permit",bp01:"Building Permit (NBC Form B-01B)",b17:"BFP Endorsement – Building Permit (B-17)",b18:"BFP Endorsement – Completion / Occupancy (B-18)"};
+const CERT_TYPES={bp:"Existence of a Building Permit",op:"Existence of an Occupancy Permit",co:"Certificate of Occupancy (NBC Form B-13)",op01:"Certificate of Occupancy (Santo Tomas)",acc:"Existence of an Accessory Permit",a01:"Accessory Permit – Fencing, Sign, Demolition… (Santo Tomas)",bp01:"Building Permit (NBC Form B-01B)",b17:"BFP Endorsement – Building Permit (B-17)",b18:"BFP Endorsement – Completion / Occupancy (B-18)"};
 const ACC_KINDS={SN:["SIGN PERMIT","          Sign Permit No: "],FN:["FENCING PERMIT","       Fencing Permit No: "],DE:["DEMOLITION PERMIT","    Demolition Permit No: "],SF:["SCAFFOLDING PERMIT","   Scaffolding Permit No: "],GP:["GROUND PREPARATION PERMIT","  Ground Prep. Permit No: "],SE:["SIDEWALK ENCLOSURE PERMIT","Sidewalk Encl. Permit No: "],SC:["SIDEWALK CONSTRUCTION PERMIT","Sidewalk Const Permit No: "]};
 const CO_SIGN=[["locz","Locational/Zoning"],["lg","Line and Grade"],["arch","Architectural"],["civ","Civil/Structural"],["elec","Electrical"],["mech","Mechanical"],["san","Sanitary"],["plb","Plumbing"],["elx","Electronics"],["int","Interior Design"],["acc","Accessibility"],["fire","Fire Safety"]];
 let CT=null;
@@ -5265,7 +5265,46 @@ function o01Fields(c,f){return `<div class="row" style="gap:6px">${["Full Occupa
   ${f("occChar","Use or Character of Occupancy","RESIDENTIAL")}${f("group","Group","A-1")}${f("location","Located at / Along","DAMORTIS, SANTO TOMAS LA UNION",1)}</div>
   <div class="row" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-c="exempt" style="width:auto" ${c.exempt?"checked":""}> EXEMPTED</label><label class="row" style="gap:6px"><input type="checkbox" data-c="noBack" style="width:auto" ${c.noBack?"checked":""}> Omit the Terms and Conditions (back page)</label>
    <label class="row" style="gap:6px">Paper: <select data-c="paper" style="width:auto"><option value="long" ${c.paper!=="letter"?"selected":""}>Long bond (8.5×13)</option><option value="letter" ${c.paper==="letter"?"selected":""}>Letter (8.5×11)</option></select></label></div>`}
-function certHtml(c){return c.type==="bp01"?b01Html(c):c.type==="op01"?o01Html(c):c.type==="co"?coHtml(c):(c.type==="b17"||c.type==="b18")?bfpHtml(c):certBoxHtml(c)}
+/* ---------- Accessory permits (Fencing, Sign, Demolition…) — same design as the Building Permit ---------- */
+const A01_SCOPE={FN:"CONSTRUCTION OF FENCE",SN:"INSTALLATION OF SIGN",DE:"DEMOLITION",SF:"ERECTION OF SCAFFOLDING",GP:"GROUND PREPARATION AND EXCAVATION",SE:"SIDEWALK ENCLOSURE",SC:"SIDEWALK CONSTRUCTION"};
+function a01Defaults(c,r){b01Defaults(c,r);const k=(r&&r.type&&r.type!=="BP")?r.type:(c.acc||"FN");
+  Object.assign(c,{type:"a01",acc:k,bScope:(!c.bScope||c.bScope==="NEW CONSTRUCTION")?(A01_SCOPE[k]||""):c.bScope,bpRel:c.bpRel||(r&&(r.bpNo||r.bpRef||r.bp))||""});return c}
+function a01Html(c){const ul=(v,w,cls)=>`<span class="b1v ${cls||""}" style="min-width:${w}">${v?`<span class="cv">${esc(v)}</span>`:"&nbsp;"}</span>`;
+  const box=k=>`<span class="b1box">${(c.kind||"NEW")===k?"✓":""}</span>${k}`;
+  const corners=`<i class="b1c tl"></i><i class="b1c tr"></i><i class="b1c bl"></i><i class="b1c br"></i>`;
+  const cost=c.bCost!==""&&c.bCost!=null&&!isNaN(+c.bCost)?"Php "+money(c.bCost):(c.bCost||"");
+  const title=(ACC_KINDS[c.acc]||ACC_KINDS.FN)[0];const tsz=title.length>22?"28pt":title.length>17?"34pt":"";
+  const qt=permitQrText(c);
+  return`<div class="cpage land b01 a01 ${c.paper==="letter"?"letter":""}">${qt?`<div class="cqr b01q">${qrSvg(qt,70)}</div>`:`<div class="cqr b01q qrph">QR CODE<br>lalabas kapag<br>may Permit No. na</div>`}<div class="b01in">${corners}
+   <div class="b1hd"><img src="${SEAL}" alt=""><div class="b1t">Republic of the Philippines<br>Municipality of SANTO TOMAS<br>Province of La Union<div class="b1o">OFFICE OF THE BUILDING OFFICIAL</div></div><img src="${BPLOGO}" alt=""></div>
+   <div class="b1p"${tsz?` style="font-size:${tsz}"`:""}>${esc(title)}</div>
+   <div class="b1k3">${box("NEW")}&nbsp;&nbsp;&nbsp;&nbsp;${box("RENEWAL")}&nbsp;&nbsp;&nbsp;&nbsp;${box("AMENDATORY")}</div>
+   <div class="b1top"><div><b>PERMIT NO.</b> ${ul(c.permitNo,"2.2in")}<br><b>DATE ISSUED:</b> ${ul(dash(c.dateIssued),"2.0in")}</div>
+     <div><b>OFFICIAL RECEIPT NO.</b> ${ul(c.exempt?"EXEMPTED":c.orNo,"1.7in")}<br><b>DATE PAID:</b> ${ul(c.exempt?"":dash(c.datePaid),"1.7in")}</div>
+     <div><b>BUILDING PERMIT NO.</b> ${ul(c.bpRel,"1.5in")}<br><b>BP DATE ISSUED:</b> ${ul(dash(c.bpRelDate),"1.4in")}</div></div>
+   <p class="b1p1">This <b>PERMIT</b> is issued pursuant to Sections 301 and 302 of the National Building Code of the Philippines (PD 1096), its Revised IRR, other Referral Codes and its Terms and Conditions.</p>
+   <div class="b1rows">
+    <div class="b1r"><span class="b1k">Owner / Permittee</span><span>:</span>${ul(c.name,"100%","full")}</div>
+    <div class="b1r"><span class="b1k">Project Title</span><span>:</span>${ul(c.project,"100%","full")}</div>
+    <div class="b1r"><span class="b1k">Location of Construction</span><span>:</span><span class="b1x">Lot: ${ul(c.bLot,".5in")} Blk.: ${ul(c.bBlk,".45in")} TCT No.: ${ul(c.bTct,".85in")} Street: ${ul(c.bStreet,".95in")} Brgy.: ${ul(c.bBrgy,"1.05in")}</span></div>
+    <div class="b1r"><span class="b1k"></span><span></span><span class="b1x">City/Municipality: ${ul(c.bCity,"2.6in")} ZIP Code: ${ul(c.bZip,".7in")}</span></div>
+    <div class="b1r"><span class="b1k">Scope of Work</span><span>:</span>${ul(c.bScope,"100%","full")}</div>
+    ${c.aDetails?`<div class="b1r"><span class="b1k">Description / Dimensions</span><span>:</span>${ul(c.aDetails,"100%","full")}</div>`:""}
+    <div class="b1r"><span class="b1k">Total Project Cost</span><span>:</span>${ul(cost,"100%","full")}</div>
+    <div class="b1r"><span class="b1k">Professional In Charge of Construction</span><span>:</span>${ul(withIni(c.bProf),"100%","full")}</div></div>
+   <div class="b1iss"><b class="b1pi">PERMIT ISSUED BY:</b><div class="b1sigw"><div class="b1sig"><b>${esc(String(c.bo||"").toUpperCase())}</b></div><b class="b1ti">${esc(String(c.boTitle||BO_TITLE).toUpperCase())}</b><br><span style="font-size:8.5pt">(Signature over Printed Name)</span></div></div>
+   <div class="b1rev">THIS PERMIT MAY BE CANCELLED OR REVOKED PURSUANT TO SECTION 207, 305 AND 306 OF THE NATIONAL BUILDING CODE OF THE PHILIPPINES (PD 1096)<br>AND ITS REVISED IRR</div>
+  </div></div>`}
+function a01Fields(c,f){return `<label class="f wide"><span>Accessory permit type</span><select data-c="acc">${Object.entries(ACC_KINDS).map(([k,v])=>`<option value="${k}" ${c.acc===k?"selected":""}>${esc(v[0])}</option>`).join("")}</select></label>
+  <div class="row" style="gap:6px">${["NEW","RENEWAL","AMENDATORY"].map(k=>`<label class="pill"><input type="radio" name="a1kind" data-c="kind" value="${k}" ${(c.kind||"NEW")===k?"checked":""}> ${k}</label>`).join("")}</div>
+  <div class="grid2">${f("permitNo","Permit No.","FN-1387-2611-0004")}${f("dateIssued","Date Issued","11-18-2026")}${f("orNo","Official Receipt No.")}${f("datePaid","Date Paid","11-18-2026")}
+  ${f("bpRel","Building Permit No. (if any)","BP-1387-2611-0040")}${f("bpRelDate","BP Date Issued","11-18-2026")}
+  ${f("name","Owner / Permittee","",1)}${f("project","Project Title","",1)}${f("bLot","Lot")}${f("bBlk","Blk.")}${f("bTct","TCT No.")}${f("bStreet","Street")}${f("bBrgy","Brgy.")}${f("bZip","ZIP Code","2505")}${f("bCity","City/Municipality","SANTO TOMAS, LA UNION",1)}
+  ${f("bScope","Scope of Work","CONSTRUCTION OF FENCE",1)}${f("aDetails","Description / Dimensions (optional)","e.g. 45.00 l.m. CHB fence, 1.80 m high",1)}
+  ${f("bCost","Total Project Cost (₱)","85000")}<label class="f wide"><span>Professional In Charge of Construction</span><input data-c="bProf" value="${esc(c.bProf||"")}" list="profFullList" placeholder="ENGR. JUAN D. CRUZ"><datalist id="profFullList">${PROFS.map(p=>`<option value="${esc(withIni(profFull(profLabel(p))))}">`).join("")}</datalist></label></div>
+  <div class="row" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-c="exempt" style="width:auto" ${c.exempt?"checked":""}> EXEMPTED</label>
+   <label class="row" style="gap:6px">Paper: <select data-c="paper" style="width:auto"><option value="long" ${c.paper!=="letter"?"selected":""}>Long bond (8.5×13)</option><option value="letter" ${c.paper==="letter"?"selected":""}>Letter (8.5×11)</option></select></label></div>`}
+function certHtml(c){return c.type==="a01"?a01Html(c):c.type==="bp01"?b01Html(c):c.type==="op01"?o01Html(c):c.type==="co"?coHtml(c):(c.type==="b17"||c.type==="b18")?bfpHtml(c):certBoxHtml(c)}
 /* ---------- editor ---------- */
 function renderCert(){const c=CT;
   const f=(k,l,ph,wide)=>`<label class="f ${wide?"wide":""}"><span>${l}</span><input data-c="${k}" value="${esc(c[k]??"")}" placeholder="${esc(ph||"")}"${/Prof|cocBy/.test(k)?' list="profList"':""}></label>`;
@@ -5293,21 +5332,21 @@ function renderCert(){const c=CT;
   else extra=`<h3>Certification signature and payment</h3><div class="grid2"><label class="f"><span>Issued this (date)</span><input type="date" data-c="issue" value="${esc(c.issue)}"></label>${f("certOr","Certification OR No.")}${f("certDate","Certification date paid")}${f("certAmount","Amount (₱)","50.00")}</div>`;
   $("#ceCtl").innerHTML=`<div><h3>Certification type</h3><div class="row" style="gap:6px">${typeBtns}</div></div>
    <div><h3>Get data from Permit Register</h3><input id="cePick" type="search" placeholder="Search: name, permit no., project" aria-label="Search permits"><div id="cePickList"></div>${c.regNo?`<p class="muted" style="font-size:12px;margin:4px 0 0">From register: <span class="mono">${esc(c.permitNo||c.regNo)}</span>. You can still edit below.</p>`:""}</div>
-   ${c.type==="bp01"?`<div><h3>Building Permit data</h3>${b01Fields(c,f)}</div>`:c.type==="op01"?`<div><h3>Certificate of Occupancy data</h3>${o01Fields(c,f)}</div>`:(c.type==="b17"||c.type==="b18")?`<div><h3>Endorsement data</h3>${bfpFields(c,f)}</div>`:`<div><h3>Details</h3>${flds}</div><div>${extra}</div>`}
+   ${c.type==="a01"?`<div><h3>Accessory Permit data</h3>${a01Fields(c,f)}</div>`:c.type==="bp01"?`<div><h3>Building Permit data</h3>${b01Fields(c,f)}</div>`:c.type==="op01"?`<div><h3>Certificate of Occupancy data</h3>${o01Fields(c,f)}</div>`:(c.type==="b17"||c.type==="b18")?`<div><h3>Endorsement data</h3>${bfpFields(c,f)}</div>`:`<div><h3>Details</h3>${flds}</div><div>${extra}</div>`}
    <div><h3>Header and signature</h3><div class="grid2">${f("town","Header line 2")}${f("prov","Header line 3")}${f("bo","Signatory name","",1)}${f("boTitle","Designation","Acting Building Official",1)}</div></div>`;
   $("#cePrev").innerHTML=certHtml(c);
   const C=$("#ceCtl"),rp=()=>$("#cePrev").innerHTML=certHtml(c);
   const bt=$("#bfpToday");if(bt)bt.onclick=()=>{c.dRef=mdy(today());renderCert()};
-  C.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{c.type=b.dataset.ct;if(c.regNo){const r=regByNo(c.regNo);if(r){certFromReg(c,r);c.type=b.dataset.ct;if(c.type==="bp01")b01Defaults(c,r);if(c.type==="op01")o01Defaults(c,r)}}renderCert()});
+  C.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{c.type=b.dataset.ct;if(c.regNo){const r=regByNo(c.regNo);if(r){certFromReg(c,r);c.type=b.dataset.ct;if(c.type==="bp01")b01Defaults(c,r);if(c.type==="op01")o01Defaults(c,r);if(c.type==="a01")a01Defaults(c,r)}}renderCert()});
   C.querySelectorAll("[data-c]").forEach(x=>{const ev=x.type==="checkbox"||x.tagName==="SELECT"?"change":"input";x.addEventListener(ev,()=>{c[x.dataset.c]=x.type==="checkbox"?x.checked:x.value;if(x.dataset.c==="acc"||x.type==="checkbox"||x.type==="radio")renderCert();else rp()})});
   C.querySelectorAll("[data-sig]").forEach(x=>x.oninput=()=>{c.sig=c.sig||{};c.sig[x.dataset.sig]=x.value;rp()});
-  $("#cePick").oninput=()=>{const q=toks($("#cePick").value);const want=c.type==="acc"?(r=>r.type!=="BP"):(r=>r.type==="BP");
+  $("#cePick").oninput=()=>{const q=toks($("#cePick").value);const want=c.type==="acc"||c.type==="a01"?(r=>r.type!=="BP"):(r=>r.type==="BP");
     const L_=q.length?REG.filter(r=>r.k==="permit"&&want(r)).filter(r=>q.every(t=>toks([r.name,r.pno,r.no,r.project,r.brgy].join(" ")).join(" ").includes(t)||String(r.pno||"").includes(t))).slice(0,8):[];
     $("#cePickList").innerHTML=L_.map(r=>`<div class="item" data-pk="${esc(r.no)}" data-pt="${esc(r.type)}"><div class="t"><b>${esc(r.name)}</b><span class="mono">${esc(r.pno||r.no)}</span></div><div class="meta">${esc(r.date)} · ${esc(r.brgy||"")} · ${esc(r.project||"")}${r.op?" · may OP":""}</div></div>`).join("")||(q.length?`<div class="muted" style="font-size:12.5px;padding:6px 0">No matches.</div>`:"");
-    $("#cePickList").querySelectorAll("[data-pk]").forEach(x=>x.onclick=()=>{const r=REG.find(y=>y.no===x.dataset.pk&&y.type===x.dataset.pt);const t=c.type;certFromReg(c,r);if(t!=="acc"||r.type!=="BP")c.type=r.type!=="BP"?"acc":t;if(c.type==="bp01")b01Defaults(c,r);if(c.type==="op01")o01Defaults(c,r);renderCert();toast("Data loaded for "+(r.pno||r.no))})};
+    $("#cePickList").querySelectorAll("[data-pk]").forEach(x=>x.onclick=()=>{const r=REG.find(y=>y.no===x.dataset.pk&&y.type===x.dataset.pt);const t=c.type;certFromReg(c,r);if(t==="a01"&&r.type!=="BP")c.type="a01";else if(t!=="acc"||r.type!=="BP")c.type=r.type!=="BP"?"acc":t;if(c.type==="a01")a01Defaults(c,r);if(c.type==="bp01")b01Defaults(c,r);if(c.type==="op01")o01Defaults(c,r);renderCert();toast("Data loaded for "+(r.pno||r.no))})};
 }
 function setPageSize(css){let st=document.getElementById("pgsz");if(!st){st=document.createElement("style");st.id="pgsz";document.head.appendChild(st)}st.textContent=css?`@media print{@page{${css}}}`:""}
-$("#cePrint").onclick=()=>{const c=CT;audit("print-cert",(c.type||"")+" "+(c.permitNo||c.opNo||""),c.name||"");$("#printArea").innerHTML=certHtml(c);setPageSize(c.type==="bp01"||c.type==="op01"?(c.paper==="letter"?"size:11in 8.5in;margin:0":"size:13in 8.5in;margin:0"):(c.type==="co")?"size:11in 8.5in;margin:0":"size:8.5in 11in;margin:0");doPrint()};
+$("#cePrint").onclick=()=>{const c=CT;audit("print-cert",(c.type||"")+" "+(c.permitNo||c.opNo||""),c.name||"");$("#printArea").innerHTML=certHtml(c);setPageSize(c.type==="bp01"||c.type==="op01"||c.type==="a01"?(c.paper==="letter"?"size:11in 8.5in;margin:0":"size:13in 8.5in;margin:0"):(c.type==="co")?"size:11in 8.5in;margin:0":"size:8.5in 11in;margin:0");doPrint()};
 $("#ceSave").onclick=async()=>{try{const L=(await DB.get("certs").catch(()=>null))||[];CT.updated=new Date().toISOString();const i=L.findIndex(x=>x.id===CT.id);if(i>=0)L[i]=JSON.parse(JSON.stringify(CT));else L.push(JSON.parse(JSON.stringify(CT)));await DB.set("certs",L);toast("Certification saved");audit("save-cert",CT.permitNo||CT.opNo||"",CT.name||"")}catch(e){toast("Not saved: "+e.message)}};
 $("#ceList").onclick=async()=>{const L=((await DB.get("certs").catch(()=>null))||[]).sort((a,b)=>(b.updated||"").localeCompare(a.updated||""));
   $("#cePickList").innerHTML=L.length?`<div class="muted" style="font-size:12px;margin:6px 0">Saved certifications:</div><div class="list">${L.map(x=>`<div class="item" data-cid="${x.id}"><div class="t"><b>${esc(x.name||"(no name)")}</b><span class="muted" style="font-size:11.5px">${esc(CERT_TYPES[x.type])}</span></div><div class="meta">${esc(x.permitNo||x.opNo||"")} · ${esc((x.updated||"").slice(0,10))}</div></div>`).join("")}</div>`:`<div class="muted" style="font-size:12.5px">Nothing saved yet.</div>`;
@@ -8497,7 +8536,7 @@ function qrSvg(text,px){try{const q=qrcode(0,"M");q.addData(String(text).normali
   let d="";for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))d+=`M${c},${r}h1v1h-1z`;return`<svg viewBox="-2 -2 ${n+4} ${n+4}" width="${px||72}" height="${px||72}" shape-rendering="crispEdges"><rect x="-2" y="-2" width="${n+4}" height="${n+4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`}catch(e){return""}}
 function permitQrText(c){const occT=c.type==="op"||c.type==="co"||c.type==="op01";const no=occT?c.opNo:c.permitNo;if(!no)return"";
   const pub=APPS.find(a=>a.pvPermit?.enabled&&a.pvPermit.no===no&&a.pvPermit.token);if(pub)return pvUrl("permit",pub.pvPermit.token);
-  return[`OBO SANTO TOMAS, LA UNION`,`${({bp:"BUILDING PERMIT",bp01:"BUILDING PERMIT",op:"OCCUPANCY PERMIT",co:"CERTIFICATE OF OCCUPANCY",op01:"CERTIFICATE OF OCCUPANCY",acc:"PERMIT"})[c.type]||"PERMIT"} ${no}`,`ISSUED ${occT?c.opDate||"":c.dateIssued||""}`,`TO ${fmUp(c.name||"")}`,c.project?fmUp(c.project):"",c.location?fmUp(c.location):"",`CODE ${pcode(no,c.name)}`,`VERIFY WITH THE OFFICE OF THE BUILDING OFFICIAL`].filter(Boolean).join("\n")}
+  return[`OBO SANTO TOMAS, LA UNION`,`${({bp:"BUILDING PERMIT",bp01:"BUILDING PERMIT",op:"OCCUPANCY PERMIT",co:"CERTIFICATE OF OCCUPANCY",op01:"CERTIFICATE OF OCCUPANCY",acc:(ACC_KINDS[c.acc]||["PERMIT"])[0],a01:(ACC_KINDS[c.acc]||["PERMIT"])[0]})[c.type]||"PERMIT"} ${no}`,`ISSUED ${occT?c.opDate||"":c.dateIssued||""}`,`TO ${fmUp(c.name||"")}`,c.project?fmUp(c.project):"",c.location?fmUp(c.location):"",`CODE ${pcode(no,c.name)}`,`VERIFY WITH THE OFFICE OF THE BUILDING OFFICIAL`].filter(Boolean).join("\n")}
 
 /* ================= NOV / WSO letters ================= */
 let LT=null;
