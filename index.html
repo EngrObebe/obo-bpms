@@ -4835,7 +4835,9 @@ async function ctrlGuard(){
     return true}
   /* new assessment: same applicant + project already saved? */
   const o=assessCache.find(a=>a.id!==A.id&&a.ctrl&&same(a.family,a.first,a.project));
-  if(o){if(confirm(`${o.family}${o.first?", "+o.first:""} already has assessment no. ${o.ctrl}${o.project?" ("+o.project+")":""}.\n\nOK = update that assessment (keep no. ${o.ctrl})\nCancel = save as a NEW assessment with a new number`)){
+  if(o){const nt=opLines().total,ot=+o.total||0;
+    if((o.posted||o.orNo)&&Math.abs(nt-ot)>0.005&&!confirm(`WARNING: assessment no. ${o.ctrl} is already ${o.posted?"posted ("+(o.posted.pno||"")+")":"paid"} at ${peso(ot)}.\nThis one totals ${peso(nt)} — updating will REPLACE the saved fee lines.\n\nOK = replace anyway\nCancel = go back (nothing is saved)`))return false;
+    if(confirm(`${o.family}${o.first?", "+o.first:""} already has assessment no. ${o.ctrl}${o.project?" ("+o.project+")":""} — ${peso(ot)}.\nThis one: ${peso(nt)}.\n\nOK = update that assessment (keep no. ${o.ctrl}; its figures will be replaced by this one)\nCancel = save as a NEW assessment with a new number`)){
       A.id=o.id;A.ctrl=o.ctrl;if(o.posted&&!A.posted)A.posted=o.posted;if(o.permitNo&&!A.permitNo)A.permitNo=o.permitNo;if(o.pinId&&!A.pinId)A.pinId=o.pinId;
       audit("reuse-ctrl",o.ctrl,"re-saved instead of new number")}
     return true}
@@ -5357,6 +5359,8 @@ $("#btnCalc").onclick=()=>openCalc();
 const KIND_CLASS={"Residential (house)":1,"Residential (apartment / for rent)":2,"Commercial":9,"Mixed use":9,"Industrial / warehouse":12,"Institutional":6,"Fence":1,"Extension / renovation":1};
 const STAGE_SUR={"Clearing / excavation":"j_13","Footing / foundation":"j_14","Columns and beams":"j_15","Walls / CHB":"j_16","Roofing":"j_16","Finishing":"j_16","Completed, not yet occupied":"j_16","Completed and in use":"j_16"};
 async function assessFromPin(p){
+  const ex=latestAssess(p.id);
+  if(ex&&confirm(`This pin already has assessment no. ${ex.ctrl} (${peso(ex.total)}).\n\nOK = open that assessment\nCancel = start a NEW assessment from the pin`)){openCalc(JSON.parse(JSON.stringify(ex)));return}
   const a=blankAssess();const parts=String(p.owner||"").split(",");a.family=(parts[0]||"").trim().toUpperCase();a.first=(parts.slice(1).join(",")||"").trim().toUpperCase();
   a.brgy=p.brgy||"";a.street=p.location||"";a.pinId=p.id;a.assessor=p.inspector||"";
   if(KIND_CLASS[p.kind])a.class_id=KIND_CLASS[p.kind];
