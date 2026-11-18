@@ -884,7 +884,7 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute
 .b1sigw{position:absolute;left:50%;transform:translateX(-50%);top:.32in;text-align:center;line-height:1.25}.b1sig{border-bottom:1.2px solid #000;min-width:3.4in;padding:0 .1in 1px}.b1ti{font-family:"Rockwell Extra Bold","Alfa Slab One",Rockwell,Georgia,serif;font-weight:400;font-size:12pt}
 .b1terms{font-size:10.2pt;line-height:1.24;text-align:justify}.b1tt{font-size:13pt}.b1terms ol{margin:.12in 0 0;padding-left:.45in}.b1terms ol ol{margin-top:.02in;padding-left:.35in}.b1terms li{margin-bottom:.03in}.b1terms ol ol li{margin-bottom:.01in}
 .o01 .o1p{font-size:30pt}.o1box{margin-left:.1in}.o1top{justify-content:space-around;line-height:1.55}.o1p1{text-indent:0;margin:.08in 0 .02in;font-size:11pt}.o1rows{margin-left:1.3in;margin-right:1.3in;gap:.04in}.o01 .b1r{grid-template-columns:2.45in .18in minmax(0,1fr)}
-.o1t{margin:.03in 0 0;font-size:11pt;line-height:1.3;text-indent:.6in;text-align:justify}.o1bot{display:grid;grid-template-columns:2.4in 1fr 2.4in;align-items:center;margin-top:.1in}.o1post{border:1.5px solid #000;padding:.05in .08in;font-weight:700;font-size:9.5pt;text-align:center;line-height:1.2}.o1sig{text-align:center;line-height:1.25}.qrph{width:70px;height:70px;border:1.5px dashed #c33;color:#c33;font:bold 7.5pt/1.25 Arial,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center}#printArea .qrph{display:none}
+.o1t{margin:.03in 0 0;font-size:11pt;line-height:1.3;text-indent:.6in;text-align:justify}.o1bot{display:grid;grid-template-columns:2.4in 1fr 2.4in;align-items:center;margin-top:.1in}.o1post{border:1.5px solid #000;padding:.05in .08in;font-weight:700;font-size:9.5pt;text-align:center;line-height:1.2}.o1sig{text-align:center;line-height:1.25}.a01b .b1terms{font-size:12pt;line-height:1.45}.a01b .b1terms li{margin-bottom:.04in}.a01b .b1tt{font-size:13.5pt}.qrph{width:70px;height:70px;border:1.5px dashed #c33;color:#c33;font:bold 7.5pt/1.25 Arial,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center}#printArea .qrph{display:none}
 .b1rev{text-align:center;font-family:"Rockwell Extra Bold","Alfa Slab One",Rockwell,Georgia,serif;font-size:9.5pt;line-height:1.3;margin-top:auto}
 .cv{color:var(--fill)}
 .cbo{font-size:12pt}
@@ -5271,6 +5271,29 @@ function o01Fields(c,f){return `<div class="row" style="gap:6px">${["Full Occupa
 const A01_SCOPE={FN:"CONSTRUCTION OF FENCE",SN:"INSTALLATION OF SIGN",DE:"DEMOLITION",SF:"ERECTION OF SCAFFOLDING",GP:"GROUND PREPARATION AND EXCAVATION",SE:"SIDEWALK ENCLOSURE",SC:"SIDEWALK CONSTRUCTION"};
 function a01Defaults(c,r){b01Defaults(c,r);const k=(r&&r.type&&r.type!=="BP")?r.type:(c.acc||"FN");
   Object.assign(c,{type:"a01",acc:k,bScope:(!c.bScope||c.bScope==="NEW CONSTRUCTION")?(A01_SCOPE[k]||""):c.bScope,bpRel:c.bpRel||(r&&(r.bpNo||r.bpRef||r.bp))||""});return c}
+/* back page of accessory permits — conditions of the NBC accessory permit forms (e.g. B-03 Box 8), adapted per type */
+const A01_WORK={FN:"fencing works",SN:"sign / signboard",DE:"demolition works",SF:"scaffolding",GP:"ground preparation and excavation works",SE:"sidewalk enclosure",SC:"sidewalk construction works"};
+function a01Back(c){const corners=`<i class="b1c tl"></i><i class="b1c tr"></i><i class="b1c bl"></i><i class="b1c br"></i>`;const k=c.acc||"FN",w=A01_WORK[k]||"works";
+  const extra={
+   FN:`<li>That the fence shall be constructed entirely within the property line of the owner as established by the relocation survey, and shall not encroach on any road right-of-way, easement, sidewalk or adjoining property.</li>`,
+   SN:`<li>That the sign shall be erected only at the approved location, shall be structurally safe and properly maintained, shall not obstruct traffic signs, fire escapes, doors or windows, and shall be removed upon expiration or revocation of this permit.</li>`,
+   DE:`<li>That adjoining properties, the public and utilities shall be protected throughout the demolition, utility connections shall be disconnected beforehand, and all debris shall be removed from the site and disposed of properly.</li>`,
+   SF:`<li>That the scaffolding shall be safely erected, braced and maintained, pedestrians shall be protected, and the scaffolding shall be removed upon expiration of the period covered by this permit.</li>`,
+   GP:`<li>That excavations shall be protected, shored where necessary and not left open beyond the period allowed under the Code, and adjoining structures and utilities shall be safeguarded.</li>`,
+   SE:`<li>That the enclosure shall be limited to the approved area and period, shall leave a safe passage for pedestrians, and shall be removed upon expiration of this permit.</li>`,
+   SC:`<li>That the sidewalk shall be built to the approved line, grade and width, and shall remain free of obstructions for public use.</li>`}[k]||"";
+  return`<div class="cpage land b01 a01b ${c.paper==="letter"?"letter":""}"><div class="b01in">${corners}<div class="b1terms"><b class="b1tt">PERMIT IS HEREBY ISSUED / GRANTED SUBJECT TO THE FOLLOWING CONDITIONS:</b><ol>
+   <li>That under Article 1723 of the Civil Code of the Philippines, the engineer or architect who drew up the plans and specifications is liable for damages if within fifteen (15) years from completion the structure should collapse due to defect in the plans or specifications or defects in the ground; the engineer or architect who supervises the construction shall be solidarily liable with the contractor should the structure collapse due to defect in the construction or the use of inferior materials.</li>
+   <li>That the proposed ${esc(w)} shall be in conformity with the provisions of the National Building Code of the Philippines (PD 1096), its Revised IRR and other referral codes; in particular:<ol type="a">
+    <li>That prior to commencement, an actual relocation survey shall be conducted by a duly licensed Geodetic Engineer.</li>
+    <li>That before commencing any excavation, the person making or causing it to be made shall notify in writing the owner of the adjoining property not less than ten (10) days before, and show how the adjoining property will be protected.</li>
+    <li>That no person shall use or occupy a street, alley or public sidewalk for the performance of the work without the corresponding permit, and pedestrians shall be protected at all times.</li></ol></li>
+   ${extra}
+   <li>That a duly licensed Architect or Civil Engineer shall undertake the full-time inspection and supervision of the work, and shall keep at the jobsite a logbook of daily activities available for inspection by the Office of the Building Official.</li>
+   <li>That a copy of this permit and the approved plans shall be kept at the jobsite at all times.</li>
+   <li>That any change in the approved plans or scope shall first be covered by an amendatory permit before the change is carried out.</li>
+   <li>That this permit shall expire and become null and void if the work is not commenced within one (1) year from its issuance, or is suspended or abandoned for a period of one hundred twenty (120) days after it has been commenced (Section 305, PD 1096).</li></ol></div>
+   <div class="b1rev">THIS PERMIT MAY BE CANCELLED OR REVOKED PURSUANT TO SECTION 207, 305 AND 306 OF THE NATIONAL BUILDING CODE OF THE PHILIPPINES (PD 1096)<br>AND ITS REVISED IRR</div></div></div>`}
 function a01Html(c){const ul=(v,w,cls)=>`<span class="b1v ${cls||""}" style="min-width:${w}">${v?`<span class="cv">${esc(v)}</span>`:"&nbsp;"}</span>`;
   const box=k=>`<span class="b1box">${(c.kind||"NEW")===k?"✓":""}</span>${k}`;
   const corners=`<i class="b1c tl"></i><i class="b1c tr"></i><i class="b1c bl"></i><i class="b1c br"></i>`;
@@ -5296,7 +5319,7 @@ function a01Html(c){const ul=(v,w,cls)=>`<span class="b1v ${cls||""}" style="min
     <div class="b1r"><span class="b1k">Professional In Charge of Construction</span><span>:</span>${ul(withIni(c.bProf),"100%","full")}</div></div>
    <div class="b1iss"><b class="b1pi">PERMIT ISSUED BY:</b><div class="b1sigw"><div class="b1sig"><b>${esc(String(c.bo||"").toUpperCase())}</b></div><b class="b1ti">${esc(String(c.boTitle||BO_TITLE).toUpperCase())}</b><br><span style="font-size:8.5pt">(Signature over Printed Name)</span></div></div>
    <div class="b1rev">THIS PERMIT MAY BE CANCELLED OR REVOKED PURSUANT TO SECTION 207, 305 AND 306 OF THE NATIONAL BUILDING CODE OF THE PHILIPPINES (PD 1096)<br>AND ITS REVISED IRR</div>
-  </div></div>`}
+  </div></div>`+(c.noBack?"":a01Back(c))}
 function a01Fields(c,f){return `<label class="f wide"><span>Accessory permit type</span><select data-c="acc">${Object.entries(ACC_KINDS).map(([k,v])=>`<option value="${k}" ${c.acc===k?"selected":""}>${esc(v[0])}</option>`).join("")}</select></label>
   <div class="row" style="gap:6px">${["NEW","RENEWAL","AMENDATORY"].map(k=>`<label class="pill"><input type="radio" name="a1kind" data-c="kind" value="${k}" ${(c.kind||"NEW")===k?"checked":""}> ${k}</label>`).join("")}</div>
   <div class="grid2">${f("permitNo","Permit No.","FN-1387-2611-0004")}${f("dateIssued","Date Issued","11-18-2026")}${f("orNo","Official Receipt No.")}${f("datePaid","Date Paid","11-18-2026")}
@@ -5304,7 +5327,7 @@ function a01Fields(c,f){return `<label class="f wide"><span>Accessory permit typ
   ${f("name","Owner / Permittee","",1)}${f("project","Project Title","",1)}${f("bLot","Lot")}${f("bBlk","Blk.")}${f("bTct","TCT No.")}${f("bStreet","Street")}${f("bBrgy","Brgy.")}${f("bZip","ZIP Code","2505")}${f("bCity","City/Municipality","SANTO TOMAS, LA UNION",1)}
   ${f("bScope","Scope of Work","CONSTRUCTION OF FENCE",1)}${f("aDetails","Description / Dimensions (optional)","e.g. 45.00 l.m. CHB fence, 1.80 m high",1)}
   ${f("bCost","Total Project Cost (₱)","85000")}<label class="f wide"><span>Professional In Charge of Construction</span><input data-c="bProf" value="${esc(c.bProf||"")}" list="profFullList" placeholder="ENGR. JUAN D. CRUZ"><datalist id="profFullList">${PROFS.map(p=>`<option value="${esc(withIni(profFull(profLabel(p))))}">`).join("")}</datalist></label></div>
-  <div class="row" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-c="exempt" style="width:auto" ${c.exempt?"checked":""}> EXEMPTED</label>
+  <div class="row" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-c="exempt" style="width:auto" ${c.exempt?"checked":""}> EXEMPTED</label><label class="row" style="gap:6px"><input type="checkbox" data-c="noBack" style="width:auto" ${c.noBack?"checked":""}> Omit the conditions (back page)</label>
    <label class="row" style="gap:6px">Paper: <select data-c="paper" style="width:auto"><option value="long" ${c.paper!=="letter"?"selected":""}>Long bond (8.5×13)</option><option value="letter" ${c.paper==="letter"?"selected":""}>Letter (8.5×11)</option></select></label></div>`}
 function certHtml(c){return c.type==="a01"?a01Html(c):c.type==="bp01"?b01Html(c):c.type==="op01"?o01Html(c):c.type==="co"?coHtml(c):(c.type==="b17"||c.type==="b18")?bfpHtml(c):certBoxHtml(c)}
 /* ---------- editor ---------- */
