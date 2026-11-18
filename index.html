@@ -6061,7 +6061,9 @@ function fmPageHtml(pg,bg,V,opt){opt=opt||{};let h="";
     if(precise && front && (it.k===activeAnc||it.k==="bpNo") && !String(v||"").trim() && opt.useRef){v=fmOfficeNo(V.appNo)}
     if(it.c){if(v)h+=`<b class="fmk" style="left:${it.x}pt;top:${it.y}pt">✓</b>`;continue}
     if(v==null||v==="")continue;const t=String(v);
-    if(it.bx){const n=it.bx.length;if(t.length<=n){t.split("").forEach((ch,i)=>{h+=`<span class="fmv fmc" style="left:${it.bx[i]}pt;top:${it.y-8}pt;font-size:9pt">${fmEsc(ch)}</span>`})}
+    if(it.bx){const n=it.bx.length,dg=t.replace(/-/g,"");
+      if(t.includes("-")&&t.length>n&&dg.length<=n){let i=0;for(const ch of t){if(ch==="-"){if(i>0&&i<n){const mx=(it.bx[i-1]+it.bx[i])/2;h+=`<span class="fmv fmc" style="left:${mx}pt;top:${it.y-8}pt;font-size:9pt">-</span>`}continue}h+=`<span class="fmv fmc" style="left:${it.bx[i]}pt;top:${it.y-8}pt;font-size:9pt">${fmEsc(ch)}</span>`;i++}continue}
+      if(t.length<=n){t.split("").forEach((ch,i)=>{h+=`<span class="fmv fmc" style="left:${it.bx[i]}pt;top:${it.y-8}pt;font-size:9pt">${fmEsc(ch)}</span>`})}
       else{const w=it.bx[n-1]-it.bx[0]+12,s=fmFit(t,9,w);h+=`<span class="fmv fmc" style="left:${(it.bx[0]+it.bx[n-1])/2}pt;top:${it.y-s*.95}pt;font-size:${s.toFixed(2)}pt">${fmEsc(t)}</span>`}continue}
     let x=it.x;if(it.cols){const i=it.colk.findIndex(k=>V[k]);if(i>=0)x=it.cols[i]}
     const s0=it.s||9,s=fmFit(t,s0,it.w);
@@ -6154,11 +6156,11 @@ function formAppOf(S){if(S.app)return S.app;const a=S.a,r=S.r;if(a&&a.appId){con
   if(a&&a.id){const x=APPS.find(z=>z.assessId===a.id);if(x)return x}
   if(r){const pno=r.pno||"";let x=APPS.find(z=>pno&&(z.permitNo===pno||z.epNo===pno));if(x)return x;const as=r.ass&&assessCache.find(z=>String(z.ctrl)===String(r.ass)&&z.appId);if(as){x=APPS.find(z=>z.id===as.appId);if(x)return x}}return null}
 function formAncNos(S){const a=formAppOf(S),o={};if(!a)return o;const M={EP:"elec.no",PP:"plumb.no",MP:"mech.no",SP:"sani.no",ET:"elex.no"};
-  for(const r of REG){if(r.k==="permit"&&M[r.type]&&(r.appNo===a.no||(a.epNo&&r.pno===a.epNo)))o[M[r.type]]=String(r.no).replace(/\D/g,"")}return o}
+  for(const r of REG){if(r.k==="permit"&&M[r.type]&&(r.appNo===a.no||(a.epNo&&r.pno===a.epNo)))o[M[r.type]]=String(r.no).replace(/[^\d-]/g,"")}return o}
 function formAppNo(S){const a=formAppOf(S);return a&&a.no?String(a.no).replace(/^APP-/,""):(S.ctrl||"")}
 function fmDefaults(S){const V={};const mi=String(S.middle||"").trim();const full=[S.first,mi&&(mi[0]+"."),S.family].filter(Boolean).join(" ").toUpperCase();
   const cls=String(S.className||"").toUpperCase(),grp=cls.replace(/^GROUP\s*/,"")[0]||"";const gen=GEN_UP(S.cls)||"";
-  Object.assign(V,{appNo:formAppNo(S),bpNo:String(S.pkey||"").replace(/\D/g,""),bpNo2:S.pno||"",bpDate:S.pdate||"",last:fmUp(S.family),first:fmUp(S.first),mi:mi?fmUp(mi[0])+".":"",middle:fmUp(mi),
+  Object.assign(V,{appNo:formAppNo(S),bpNo:String(S.pkey||"").replace(/[^\d-]/g,""),bpNo2:S.pno||"",bpDate:S.pdate||"",last:fmUp(S.family),first:fmUp(S.first),mi:mi?fmUp(mi[0])+".":"",middle:fmUp(mi),
     occ:[gen,cls].filter(Boolean).join(" / "),aNo:fmUp(S.address),lot:S.lot||"",blk:S.blk||"",tct:S.tct||"",taxDec:S.td||"",lStreet:fmUp(S.street),lBrgy:fmUp(S.brgy),
     oName:full,oAddr:fmUp(S.address),applicant:full,occClass:cls,units:S.units||"",floorArea:S.area?fmt1(S.area):"",totalCost:S.cost?fmNum(S.cost):"",
     issueDate:S.pdate||"",datePaid:S.paid||"",orNo:S.orNo||"",boName:BO_NAME,"cfei.lCity":"SANTO TOMAS, LA UNION",aCity:"",
@@ -6186,7 +6188,7 @@ function fmDefaults(S){const V={};const mi=String(S.middle||"").trim();const ful
   /* NBC Form B-03 – Fencing Permit */
   {const isFN=(S.r&&S.r.type==="FN")||(S.a&&(/fenc/i.test(S.a.permitType||"")||(S.a.posted&&S.a.posted.pt==="FN")));
    V["fence.lMun"]="SANTO TOMAS, LA UNION";
-   if(isFN){V["fence.no"]=V.bpNo;V.bpNo="";const ap=formAppOf(S);const bp=ap&&ap.bpNo?String(ap.bpNo):"";if(bp)V.bpNo=bp.replace(/^[A-Z]{2}-\d{4}-/,"").replace(/\D/g,"")}
+   if(isFN){V["fence.no"]=V.bpNo;V.bpNo="";const ap=formAppOf(S);const bp=ap&&ap.bpNo?String(ap.bpNo):"";if(bp)V.bpNo=bp.replace(/^[A-Z]{2}-\d{4}-/,"").replace(/^(\d\d)(\d\d)-/,"$1-$2-").replace(/[^\d-]/g,"")}
    const a=S.a||(S.r&&S.r.ass?assessCache.find(z=>String(z.ctrl)===String(S.r.ass)):null);let RR=S.R;if(!RR&&a){try{RR=BPFees.compute(toEngine(a))}catch(e){}}
    if(a){if(!V.lot&&a.lot)V.lot=a.lot;if(!V["fence.s_name"]&&a.inCharge){const sp=fmProf(a.inCharge);Object.assign(V,sp?fmProVals("fence.s_",sp):{"fence.s_name":fmUp(a.inCharge)})}}
    if(a){if(+a.g6)V["fence.len"]=(+a.g6).toFixed(2);if(+a.g7)V["fence.ht"]=(+a.g7).toFixed(2);if(+a.fence===1)V["fence.t_ind"]=1}
