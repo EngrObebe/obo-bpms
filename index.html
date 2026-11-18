@@ -4864,7 +4864,7 @@ $("#cSave").onclick=async()=>{if(!A.family.trim()){toast("Enter the applicant's 
     if(!A.ctrl)A.ctrl=await nextCtrl(A);
     else if(CLOUD.on&&(!old||String(old.ctrl||"")!==String(A.ctrl)))await cloudClaimAssessment(A);
     await ADB.put(JSON.parse(JSON.stringify(A)));
-    toast("Assessment saved "+A.ctrl);await audit("save-assess",A.ctrl,[A.family,A.first].filter(Boolean).join(", "));
+    toast("Assessment saved "+A.ctrl);await audit("save-assess",A.ctrl,[A.family,A.first].filter(Boolean).join(", "));await linkAssessApp(A);
     if(A.pinId)drawPins();renderCalc();
   }catch(e){alert("Assessment save not completed: "+e.message+"\nIf the cloud record was created, use Sync now before retrying.")}};
 /* saved list */
@@ -8521,7 +8521,18 @@ function renderAppForm(){const a=APPED,v=$("#appBody"),i=appInfo(a),isNew=!APPS.
       Object.assign(x,{family:(fam||"").trim(),first:parts.join(" "),middle:mi,project:a.project||"",brgy:a.brgy||"",appId:a.id,pinId:a.pinId||"",permitType:APP_ASSESS[a.kind||"BP"]||"Building Permit"});a.assessId=x.id;const k=APPS.findIndex(z=>z.id===a.id);APPS[k]=a;await saveApps()}
     $("#appEd").hidden=true;APPED=null;openCalc(x)}}
 /* link posting → application */
-async function appOnPost(A_,pno,date){if(!A_||!A_.appId)return;const a=APPS.find(x=>x.id===A_.appId);if(!a)return;a.permitNo=pno;a.assessed=a.assessed||(A_.date||today());if(A_.datePaid)a.paid=a.paid||A_.datePaid;a.updated=nowISO();await saveApps()}
+/* find the application an assessment belongs to (pin or applicant name) when it was not started from the application */
+function appForAssess(A_){if(!A_)return null;if(A_.appId){const x=APPS.find(z=>z.id===A_.appId);if(x)return x}
+  let x=APPS.find(z=>z.assessId===A_.id);if(x)return x;
+  if(A_.pinId){x=APPS.find(z=>z.pinId===A_.pinId&&(!z.assessId||!assessCache.some(q=>q.id===z.assessId)));if(x)return x}
+  const fam=normS(A_.family),fst=normS(A_.first).split(" ")[0]||"";if(!fam)return null;
+  const L=APPS.filter(z=>!z.released&&!z.permitNo&&(!z.assessId||!assessCache.some(q=>q.id===z.assessId))&&normS(String(z.name||"").split(",")[0])===fam&&(!fst||normS(String(z.name||"").split(",").slice(1).join(" ")).startsWith(fst)));
+  return L.length===1?L[0]:null}
+async function linkAssessApp(A_){try{const a=appForAssess(A_);if(!a)return null;let ch=false;
+  if(A_.appId!==a.id){A_.appId=a.id;await ADB.put(JSON.parse(JSON.stringify(A_)));ch=true}
+  if(a.assessId!==A_.id){a.assessId=A_.id;a.updated=nowISO();await saveApps();audit("app-link",a.no,"assessment "+(A_.ctrl||""));ch=true}return a}catch(e){return null}}
+async function appOnPost(A_,pno,date){if(!A_)return;if(!A_.appId)await linkAssessApp(A_);if(!A_.appId)return;const a=APPS.find(x=>x.id===A_.appId);if(!a)return;a.permitNo=pno;
+  if(A_.project&&normS(A_.project)!==normS(a.project)){audit("app-project",a.no,`${a.project||"—"} → ${A_.project} (per permit)`);a.project=A_.project}a.assessed=a.assessed||(A_.date||today());if(A_.datePaid)a.paid=a.paid||A_.datePaid;a.updated=nowISO();await saveApps()}
 
 /* ================= Occupancy permit numbering ================= */
 async function nextOpNo(){const now=new Date(),yy=String(now.getFullYear()).slice(2),mm=String(now.getMonth()+1).padStart(2,"0");
