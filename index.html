@@ -1348,9 +1348,12 @@ h2.sec{color:var(--accent);font-weight:800;letter-spacing:.09em}
     <div class="row" style="gap:7px">
       <label style="font-size:11px;display:flex;align-items:center;gap:5px;color:#fff">Print mode
         <select id="fmPrintMode" aria-label="NBC form printing mode" style="width:auto;padding:5px 7px;background:#fff;color:#172033">
-          <option value="full">Complete form</option><option value="ink">Inputs only (pre-printed paper)</option><option value="office">Office only: control no. + back workflow</option><option value="office-precise">Office only: front numbers + back checklist / progress</option>
+          <option value="full">Complete form</option><option value="ink">Inputs only (pre-printed paper)</option><option value="office">Office only: control no. + back workflow</option><option value="office-precise">Office only: front numbers + back checklist / progress</option><option value="align">Alignment test (plain paper, light form + entries)</option>
         </select>
       </label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:5px;color:#fff" title="Size of the pre-printed paper in your printer">Paper in printer
+        <select id="fmStock" style="width:auto;padding:5px 7px;background:#fff;color:#172033"><option value="form">Same as the form</option><option value="13fit">8.5×13 — form was shrunk to fit</option><option value="13actual">8.5×13 — form at actual size</option></select></label>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;color:#fff" title="Fine size adjustment, 100 = exact">Size %<input id="fmScalePct" type="number" min="85" max="115" step="0.5" value="100" style="width:62px;padding:5px 4px;background:#fff;color:#172033"></label>
       <label style="font-size:11px;display:flex;align-items:center;gap:4px;color:#fff" title="Move printed entries to the right/left in millimeters">X (mm)<input id="fmOffsetX" aria-label="Horizontal print offset millimeters" type="number" min="-15" max="15" step="0.5" value="0" style="width:62px;padding:5px 4px;background:#fff;color:#172033"></label>
       <label style="font-size:11px;display:flex;align-items:center;gap:4px;color:#fff" title="Move printed entries down/up in millimeters">Y (mm)<input id="fmOffsetY" aria-label="Vertical print offset millimeters" type="number" min="-15" max="15" step="0.5" value="0" style="width:62px;padding:5px 4px;background:#fff;color:#172033"></label>
       <button class="btn" id="fmReset">Refill</button><button class="btn" id="fmSave">Save</button><button class="btn primary" id="fmPrint">Print this form</button><button class="btn" id="fmClose" aria-label="Close">✕</button>
@@ -6044,7 +6047,7 @@ function bindReport(C){const r=DV.rep;
 
 /* NBC form overlay renderer: page backgrounds + values positioned in points */
 function fmFit(t,s,w){if(!w)return s;const est=String(t).length*s*0.56;return est>w?Math.max(4.6,s*w/est):s}
-function fmPrintPrefs(){let p={mode:"full",x:0,y:0};try{p={...p,...JSON.parse(localStorage.getItem("obo-nbc-print-prefs-v1")||"{}")}}catch(e){};return {mode:["ink","office","office-precise"].includes(p.mode)?p.mode:"full",x:Number.isFinite(+p.x)?Math.max(-15,Math.min(15,+p.x)):0,y:Number.isFinite(+p.y)?Math.max(-15,Math.min(15,+p.y)):0,printApp:p.printApp!==false,printAnc:p.printAnc!==false,printBP:p.printBP!==false,printBack:p.printBack!==false,useRef:!!p.useRef}}
+function fmPrintPrefs(){let p={mode:"full",x:0,y:0};try{p={...p,...JSON.parse(localStorage.getItem("obo-nbc-print-prefs-v1")||"{}")}}catch(e){};return {stock:["form","13fit","13actual"].includes(p.stock)?p.stock:"form",scale:Number.isFinite(+p.scale)&&+p.scale>=85&&+p.scale<=115?+p.scale:100,mode:["ink","office","office-precise","align"].includes(p.mode)?p.mode:"full",x:Number.isFinite(+p.x)?Math.max(-15,Math.min(15,+p.x)):0,y:Number.isFinite(+p.y)?Math.max(-15,Math.min(15,+p.y)):0,printApp:p.printApp!==false,printAnc:p.printAnc!==false,printBP:p.printBP!==false,printBack:p.printBack!==false,useRef:!!p.useRef}}
 function fmPageHtml(pg,bg,V,opt){opt=opt||{};let h="";
   const precise=opt.mode==="office-precise";
   const office=opt.mode==="office"||precise;
@@ -6088,7 +6091,14 @@ function fmPageHtml(pg,bg,V,opt){opt=opt||{};let h="";
     });
   }
   const onlyInk=["ink","office","office-precise"].includes(opt.mode),dx=Number.isFinite(+opt.x)?Math.max(-15,Math.min(15,+opt.x)):0,dy=Number.isFinite(+opt.y)?Math.max(-15,Math.min(15,+opt.y)):0;
-  return`<div class="fmpage" style="width:${pg.w}pt;height:${pg.h}pt">${onlyInk?"":`<img class="fmbg" src="${bg}" alt="">`}<div class="fm-ink-layer" style="position:absolute;inset:0;transform:translate(${dx}mm,${dy}mm)">${h}</div></div>`}
+  const G=fmGeom(pg,opt);
+  return`<div class="fmpage" style="width:${G.pw}pt;height:${G.ph}pt"><div style="position:absolute;left:0;top:0;width:${pg.w}pt;height:${pg.h}pt;transform-origin:0 0;transform:translate(${G.ox}pt,${G.oy}pt) scale(${G.s})">${onlyInk?"":`<img class="fmbg" src="${bg}" alt="" style="${opt.mode==="align"?"opacity:.35":""}">`}<div class="fm-ink-layer" style="position:absolute;inset:0;transform:translate(${dx}mm,${dy}mm)">${h}</div></div>${opt.mode==="align"?`<div style="position:absolute;left:6pt;bottom:4pt;font:7pt Arial;color:#c33">ALIGNMENT TEST · paper ${(G.pw/72).toFixed(1)}×${(G.ph/72).toFixed(1)} in · size ${(G.s*100).toFixed(1)}% · X ${dx} mm · Y ${dy} mm — hold against the pre-printed form; do not use as the form</div>`:""}</div>`}
+/* paper actually in the printer vs. the form's own size */
+function fmGeom(pg,opt){opt=opt||{};const u=(+opt.scale||100)/100;let pw=pg.w,ph=pg.h,s=1,ox=0,oy=0;
+  if(opt.stock==="13fit"&&Math.abs(pg.h-936)>1){pw=612;ph=936;s=Math.min(612/pg.w,936/pg.h);ox=(612-pg.w*s)/2;oy=(936-pg.h*s)/2}
+  else if(opt.stock==="13actual"&&Math.abs(pg.h-936)>1){pw=612;ph=936}
+  if(u!==1){ox+=pg.w*s*(1-u)/2;oy+=pg.h*s*(1-u)/2;s*=u}
+  return{pw,ph,s,ox,oy}}
 function fmEsc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 
 /* ---------- NBC application forms (Unified, ancillary permits, Sign, CFEI) ---------- */
@@ -6230,6 +6240,7 @@ function renderForms(){const fid=FM.fid,def=FORM_DEFS.find(d=>d.id===fid),V=FM.V
   const inp=(k,lbl)=>fmIsChk(fid,k)?`<label class="pill" style="border-radius:8px"><input type="checkbox" data-fv="${esc(k)}" ${V[k]?"checked":""}> ${esc(lbl)}</label>`
     :`<label class="f"><span>${esc(lbl)}</span><input data-fv="${esc(k)}" value="${esc(V[k]??"")}"></label>`;
   let h=`<div class="note" style="margin:0">${esc(def.name)} · ${esc(def.nbc)} · prints on <b>${esc(def.paper)}</b>. Shared fields (owner, location, scope) update every form; form-specific items apply to this form only. ${FM.saved?"Saved edits loaded.":"Filled from the "+(FM.src.app?"application":FM.src.a?"assessment":"permit register")+"."}</div>`;
+  {const pr=fmPrintPrefs(),G=fmGeom(FORM_SPECS[fid][0],pr);h+=`<div class="note" style="margin:0"><b>Printing on pre-printed forms:</b> this will print on <b>${(G.pw/72).toFixed(1)} × ${(G.ph/72).toFixed(1)} in</b> paper${Math.abs(FORM_SPECS[fid][0].h-936)>1&&pr.stock==="form"?` — this form is <b>8.5 × 14</b>; if your stock is long bond (8.5 × 13), set <b>Paper in printer</b>`:""}. In the browser's Print window set <b>Paper size</b> to the same size, <b>Scale 100% / Actual size</b> (not "Fit to page") and <b>Margins: None</b>. First print an <b>Alignment test</b> on plain paper, hold it over a blank pre-printed form against the light, then correct with Size % and X / Y (mm).</div>`}
   if(fmPrintPrefs().mode==="office-precise"){
     const ref=fmOfficeNo(V.appNo);
     const extra={arch:"arch.no",civil:"civil.no",elec:"elec.no",mech:"mech.no",sani:"sani.no",plumb:"plumb.no",elex:"elex.no",fence:"fence.no"}[fid];
@@ -6271,7 +6282,7 @@ function renderForms(){const fid=FM.fid,def=FORM_DEFS.find(d=>d.id===fid),V=FM.V
     <tr class="tot"><td>Total</td><td id="fmFeeTot">${esc(V["fee.total.amt"]||"")}</td><td colspan="2"></td></tr></tbody></table></div></div>`}
   {const w=credWarnings(V);if(w.length)h=`<div class="note" style="margin:0;border-color:var(--bad);color:var(--bad)"><b>Check credentials:</b> ${w.map(esc).join(" · ")}</div>`+h}
   $("#fmCtl").innerHTML=h;
-  const prefs=fmPrintPrefs();$("#fmPrintMode").value=prefs.mode;$("#fmOffsetX").value=prefs.x;$("#fmOffsetY").value=prefs.y;
+  const prefs=fmPrintPrefs();$("#fmPrintMode").value=prefs.mode;$("#fmOffsetX").value=prefs.x;$("#fmOffsetY").value=prefs.y;$("#fmStock").value=prefs.stock;$("#fmScalePct").value=prefs.scale;
   const prev=()=>{$("#fmPrev").innerHTML=`<div class="fm-stack">${fmPages(fid,V,fmPrintPrefs())}</div>`;fmScale()};prev();
   ["precApp","precAnc","precBP","precBack","precUseRef"].forEach(id=>{const el=$("#"+id);if(el)el.addEventListener("change",()=>{const p=fmPrintPrefs();p[{precApp:"printApp",precAnc:"printAnc",precBP:"printBP",precBack:"printBack",precUseRef:"useRef"}[id]]=el.checked;localStorage.setItem("obo-nbc-print-prefs-v1",JSON.stringify(p));prev()})});
   $("#fmCtl").querySelectorAll("[data-prec]").forEach(el=>el.addEventListener("input",()=>{const n=el.dataset.prec,k=`_precise${fid}_${n}`;V[k]=V[k]||{};V[k][el.dataset.pfield]=el.value;clearTimeout(tm);tm=setTimeout(prev,120)}));
@@ -6294,10 +6305,10 @@ window.addEventListener("resize",()=>{if(FM&&!$("#formEd").hidden)fmScale()});
 $("#fmClose").onclick=()=>{const back=FM&&FM.back;$("#formEd").hidden=true;document.body.style.overflow="";FM=null;if(back==="app"){$("#appEd").hidden=false;document.body.style.overflow="hidden";renderApps()}};
 $("#fmSave").onclick=async()=>{try{const all=(await DB.get("formPackets").catch(()=>null))||{};all[FM.key]={V:FM.V,fid:FM.fid,updated:new Date().toISOString(),name:FM.V.oName||""};await DB.set("formPackets",all);FM.saved=true;toast("Forms saved")}catch(e){toast("Not saved: "+e.message)}};
 $("#fmReset").onclick=()=>{const V=fmDefaults(FM.src);FM.unmapped=V._unmapped;delete V._unmapped;FM.V=V;FM.saved=false;renderForms();toast("Refilled from the "+(FM.src.a?"assessment":"register")+" (press Save to keep)")};
-function fmSavePrintPrefs(){const p={mode:$("#fmPrintMode").value,x:Math.max(-15,Math.min(15,Number($("#fmOffsetX").value)||0)),y:Math.max(-15,Math.min(15,Number($("#fmOffsetY").value)||0)),printApp:fmPrintPrefs().printApp,printAnc:fmPrintPrefs().printAnc,printBP:fmPrintPrefs().printBP,printBack:fmPrintPrefs().printBack,useRef:fmPrintPrefs().useRef};localStorage.setItem("obo-nbc-print-prefs-v1",JSON.stringify(p));return p}
-["fmPrintMode","fmOffsetX","fmOffsetY"].forEach(id=>{$("#"+id).addEventListener("change",()=>{fmSavePrintPrefs();if(FM&&!$("#formEd").hidden)renderForms()})});
+function fmSavePrintPrefs(){const p={stock:$("#fmStock").value,scale:Math.max(85,Math.min(115,Number($("#fmScalePct").value)||100)),mode:$("#fmPrintMode").value,x:Math.max(-15,Math.min(15,Number($("#fmOffsetX").value)||0)),y:Math.max(-15,Math.min(15,Number($("#fmOffsetY").value)||0)),printApp:fmPrintPrefs().printApp,printAnc:fmPrintPrefs().printAnc,printBP:fmPrintPrefs().printBP,printBack:fmPrintPrefs().printBack,useRef:fmPrintPrefs().useRef};localStorage.setItem("obo-nbc-print-prefs-v1",JSON.stringify(p));return p}
+["fmPrintMode","fmOffsetX","fmOffsetY","fmStock","fmScalePct"].forEach(id=>{$("#"+id).addEventListener("change",()=>{fmSavePrintPrefs();if(FM&&!$("#formEd").hidden)renderForms()})});
 $("#fmPrint").onclick=()=>{{const w=credWarnings(FM.V);if(w.length&&!confirm("Credentials to check:\n• "+w.join("\n• ")+"\n\nPrint anyway?"))return}const prefs=fmSavePrintPrefs();if(["ink","office","office-precise"].includes(prefs.mode)&&!confirm("PRE-PRINTED FORM: Load the correctly sized pre-printed NBC form in the printer. Set browser print Scale to 100%, margins None, and disable Fit to page. Print a calibration test on ordinary paper first. Continue?"))return;
-  audit("print-form",FM.fid+(prefs.mode==="ink"?" (inputs only)":["office","office-precise"].includes(prefs.mode)?" (office numbers and back only)":""),FM.V.oName||"");const fid=FM.fid,pg=FORM_SPECS[fid][0];$("#printArea").innerHTML=`<div class="fm-print">${fmPages(fid,FM.V,prefs)}</div>`;setPageSize(`size:${pg.w}pt ${pg.h}pt;margin:0`);doPrint()};
+  audit("print-form",FM.fid+(prefs.mode==="ink"?" (inputs only)":["office","office-precise"].includes(prefs.mode)?" (office numbers and back only)":""),FM.V.oName||"");const fid=FM.fid,pg=FORM_SPECS[fid][0];$("#printArea").innerHTML=`<div class="fm-print">${fmPages(fid,FM.V,prefs)}</div>`;const G=fmGeom(pg,prefs);setPageSize(`size:${G.pw}pt ${G.ph}pt;margin:0`);doPrint()};
 $("#cForms").onclick=()=>{if(!String(A.family||"").trim()){toast("Enter the applicant details first");return}openForms(fmSourceFromAssess(A))};
 
 const PDFLIB=()=>window.pdfjsLib||window["pdfjs-dist/build/pdf"];
