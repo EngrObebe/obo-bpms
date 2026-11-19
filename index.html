@@ -6054,7 +6054,7 @@ function fmPageHtml(pg,bg,V,opt){opt=opt||{};let h="";
   const front=opt.pageIndex===0;
   const permitKeys={arch:"arch.no",civil:"civil.no",elec:"elec.no",mech:"mech.no",sani:"sani.no",plumb:"plumb.no",elex:"elex.no",fence:"fence.no"};
   const activeAnc=permitKeys[opt.fid]||"";
-  const officeFront=new Set(["appNo","bpNo",activeAnc].filter(Boolean));
+  const officeFront=new Set(["appNo","bpNo","u.area",activeAnc].filter(Boolean));
   for(const it of pg.items){
     const officeBack=k=>/^(recvBy|recvDate|issueDate|pf\d?_|fee\.|fence\.(lg|fn|el|ot|tot)_|fence\.ot_spec)/.test(k);
     if(office && !(front?(precise?officeFront.has(it.k):it.k==="appNo"):(precise?(opt.printBack!==false&&officeBack(it.k)):["recvBy","recvDate","issueDate"].includes(it.k))))continue;
@@ -6175,6 +6175,7 @@ function fmDefaults(S){const V={};const mi=String(S.middle||"").trim();const ful
     oName:full,oAddr:fmUp(S.address),applicant:full,occClass:cls,units:S.units||"",floorArea:S.area?fmt1(S.area):"",totalCost:S.cost?fmNum(S.cost):"",
     issueDate:S.pdate||"",datePaid:S.paid||"",orNo:S.orNo||"",boName:BO_NAME,"cfei.lCity":"SANTO TOMAS, LA UNION",aCity:"",
     [S.addn?"sc_add":"sc_new"]:1,"u.new":1,"u.fsec":1,"u.simple":1,"elec.sc_new":1,"elex.sc_new":1});Object.assign(V,formAncNos(S));
+  V["u.area"]=String(typeof TOWN_CODE!=="undefined"&&TOWN_CODE||"1387");
   /* Box "Progress flow": in = date/time received, out = date/time evaluated, processed by = evaluator/assessor */
   {const ap=formAppOf(S);if(ap){const dt=x=>x?fmDate(x):"",tm=iso=>{try{return iso?new Date(iso).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""}catch(e){return""}};
     const A_=(typeof FM_AUD!=="undefined"&&FM_AUD)||[];const first=f=>{const e=A_.filter(f).sort((a,b)=>String(a.t).localeCompare(String(b.t)))[0];return e||null};
