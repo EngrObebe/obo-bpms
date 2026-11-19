@@ -6213,12 +6213,22 @@ function fmDefaults(S){const V={};const mi=String(S.middle||"").trim();const ful
   /* CFEI and sign */
   Object.assign(V,{"cfei.owner":full,"sign.grantee":full,"sign.premises":[S.lot&&("LOT "+S.lot),S.street,S.brgy,"SANTO TOMAS, LA UNION"].filter(Boolean).join(", ").toUpperCase(),"sign.issued":S.pdate||""});
   /* Box 6 fees of the unified form */
-  const un=[];if(S.R){const sec=id=>(S.R.sections.find(s=>s.id===id)||{total:0});const by=fmUp(S.assessor||"");
-    const fine=sec("fine");let sur=0,pen=0;(fine.items||[]).forEach(([l,v])=>{if(/surcharge/i.test(l))sur+=+v||0;else pen+=+v||0});
-    const amt={bldg:sec("bldg").total,elec:sec("elec").total,mech:sec("mech").total,plumb:sec("plumb").total,elex:sec("elex").total,bacc:sec("bacc").total,oacc:sec("oacc").total,insp:sec("insp").total,cert:sec("cert").total,sur,pen};
-    const rows={};for(const [k,v] of Object.entries(amt)){if(!(v>0))continue;const r=BOX6MAP[k];if(r)rows[r]=(rows[r]||0)+v;else un.push([BOX6_SRC[k],v])}
-    for(const [r,v] of Object.entries(rows)){V[`fee.${r}.amt`]=fmNum(v);V[`fee.${r}.on`]=1;V[`fee.${r}.by`]=by}
-    if(rows.civil&&S.area)V["fee.civil.basis"]=`${fmt1(S.area)} sq. m.`;if(rows.elec&&a&&a.b1)V["fee.elec.basis"]=`${a.b1} kVA`}
+  /* Box 6 fees of the unified form — same amounts as the Order of Payment (edited amounts included), so the TOTAL always matches */
+  const un=[];{const x=S.a||(S.app&&S.app.assessId?assessCache.find(z=>z.id===S.app.assessId):null)||(S.r&&S.r.ass?assessCache.find(z=>String(z.ctrl)===String(S.r.ass)):null);
+   if(x){const keep=A;let P,R;try{A=JSON.parse(JSON.stringify(x));P=opLines();R=secTotals()}finally{A=keep}
+    const by=fmUp(S.assessor||x.assessor||""),rows={},basis={};const add=(r,v,b)=>{if(!(v>0))return;rows[r]=(rows[r]||0)+v;if(b)(basis[r]=basis[r]||[]).push(b)};
+    const items=id=>((R.sections.find(q=>q.id===id)||{items:[]}).items||[]);
+    for(const l of P.L){if(!l.inc||!(+l.amt>0))continue;const v=+l.amt;
+     switch(l.id){case"bldg":add("civil",v,x.a1?`${fmt1(+x.a1)} sq. m.`:"");break;case"bacc":add("civil",v,"accessories");break;
+      case"elec":add("elec",v,x.b1?`${x.b1} kVA`:"");break;case"mech":add("mech",v);break;case"plumb":add("plumb",v);break;case"elex":add("elex",v);break;
+      case"oacc":{let lg=0,fn=0,comp=0;for(const [lb,a2] of items("oacc")){comp+=+a2||0;if(/line and grade/i.test(lb))lg+=+a2||0;else if(/fenc/i.test(lb))fn+=+a2||0}
+        const k=comp>0?v/comp:1;lg=Math.round(lg*k*100)/100;fn=Math.round(fn*k*100)/100;add("lg",lg,x.g1?`${fmt1(+x.g1)} m`:"");add("fence",fn,x.g6?`${fmt1(+x.g6)} m`:"");add("civil",Math.round((v-lg-fn)*100)/100,"GP&EP / other acc.");break}
+      case"insp":{for(const [lb,a2] of items("insp")){const r=/electr(?!onic)/i.test(lb)?"elec":/mechan/i.test(lb)?"mech":/plumb|sanit/i.test(lb)?"plumb":/electronic/i.test(lb)?"elex":"civil";add(r,(+a2||0)*(v/Math.max(0.01,items("insp").reduce((t,q)=>t+(+q[1]||0),0))),"incl. inspection")}break}
+      case"cert":add("filing",v,"certification");break;
+      case"fine":{for(const [lb,a2] of items("fine"))add(/surcharge/i.test(lb)?"sur":"pen",+a2||0);break}
+      default:add("civil",v,l.label)}}
+    for(const [r,v] of Object.entries(rows)){V[`fee.${r}.amt`]=fmNum(Math.round(v*100)/100);V[`fee.${r}.on`]=1;V[`fee.${r}.by`]=by;if(basis[r])V[`fee.${r}.basis`]=[...new Set(basis[r])].join(", ")}
+    V["fee.total.amt"]=fmNum(P.total);V["fee.total.by"]=by}}
   if(S.app){const a=S.app,d=x=>x?fmDate(x):"";Object.assign(V,{appNo:formAppNo(S),"nm.area":String(TOWN_CODE||"1387"),"nm.filed":d(a.received),tel:a.contact||"",aBrgy:fmUp(a.addrBrgy||""),aCity:"","nm.lCity":"SANTO TOMAS, LA UNION",lBrgy:fmUp(a.brgy||""),
     "nm2.wp":a.epNo||"","nm2.wpDate":d(a.epIssued),"nm2.ceiDate":d(a.cfeiIssued),"nm.done":"",recvDate:d(a.received),oName:V.applicant,
     aNo:fmUp(a.addr||""),lStreet:fmUp(a.site||""),"cfei.ee":""});
