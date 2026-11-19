@@ -6176,6 +6176,8 @@ function fmDefaults(S){const V={};const mi=String(S.middle||"").trim();const ful
     issueDate:S.pdate||"",datePaid:S.paid||"",orNo:S.orNo||"",boName:BO_NAME,"cfei.lCity":"SANTO TOMAS, LA UNION",aCity:"",
     [S.addn?"sc_add":"sc_new"]:1,"u.new":1,"u.fsec":1,"u.simple":1,"elec.sc_new":1,"elex.sc_new":1});Object.assign(V,formAncNos(S));
   V["u.area"]=String(typeof TOWN_CODE!=="undefined"&&TOWN_CODE||"1387");
+  /* ancillary permits issued with the building permit carry the same number as the BP (unless a separate number was posted) */
+  if(V.bpNo&&!((S.r&&S.r.type&&S.r.type!=="BP")))for(const k of ["arch","civil","elec","mech","sani","plumb","elex"])if(!V[k+".no"])V[k+".no"]=V.bpNo;
   /* Box "Progress flow": in = date/time received, out = date/time evaluated, processed by = evaluator/assessor */
   {const ap=formAppOf(S);if(ap){const dt=x=>x?fmDate(x):"",tm=iso=>{try{return iso?new Date(iso).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):""}catch(e){return""}};
     const A_=(typeof FM_AUD!=="undefined"&&FM_AUD)||[];const first=f=>{const e=A_.filter(f).sort((a,b)=>String(a.t).localeCompare(String(b.t)))[0];return e||null};
