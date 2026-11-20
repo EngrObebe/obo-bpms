@@ -4097,7 +4097,11 @@ function renderShared(){if(CLOUD.on)return renderCloudBox();const el=document.ge
 let pins=[]; let REG=REG0; let regDate=REG_DATE;
 const pinById = id => pins.find(p=>p.id===id);
 const regByNo = no => REG.find(r=>r.no===no);
-function statusOf(p){ if(p.permitNo){const r=regByNo(p.permitNo); if(r) return r.k==="permit"?"permit":r.k==="void"?"verify":"assessed"; if(p.manualPermit) return "permit";} return p.status||"verify"; }
+function statusOf(p){ if(p.permitNo){const r=regByNo(p.permitNo); if(r) return r.k==="permit"?"permit":r.k==="void"?"verify":"assessed"; if(p.manualPermit) return "permit";}
+  /* permit or occupancy posted through a linked assessment / application, even if the pin itself was never updated */
+  if(p.status!=="permit"&&p.id){try{const ax=typeof assessCache!=="undefined"?assessCache.find(x=>x.pinId===p.id&&x.posted&&x.posted.pno):null;if(ax){const r=regByNo(ax.posted.pno);if(!r||r.k==="permit")return"permit"}
+    const ap=typeof APPS!=="undefined"?APPS.find(x=>x.permitNo&&(x.pinId===p.id||(x.assessId&&assessCache.some(z=>z.id===x.assessId&&z.pinId===p.id)))):null;if(ap){const r=regByNo(ap.permitNo);if(!r||r.k==="permit")return"permit"}}catch(e){}}
+  return p.status||"verify"; }
 
 /* ---------- map ---------- */
 const map = L.map("map",{zoomControl:true,maxZoom:21}).setView([16.272,120.392],14);
@@ -5463,6 +5467,7 @@ async function doPost0(){if(SYNC.handle&&SYNC.ok)await syncNow(true);const P=pos
     area:+A.a1||undefined,storeys:+A.storeys||undefined,fsecNo:A.fsecNo||"",fsecDate:A.fsecDate?mdy(A.fsecDate):"",supProf:A.inCharge||"",fees:A.exempted?undefined:tot,orNo:A.orNo||"",paid:A.datePaid?mdy(A.datePaid):"",exempt:!!A.exempted,estCost:R.totalCost||undefined,ass:A.ctrl};
   postedReg.push(rec);try{await DB.set("regPosted",postedReg)}catch(e){}mergePosted();audit("post",P.pno,rec.name);try{await appOnPost(A,P.pno)}catch(e){}
   try{await ADB.put(JSON.parse(JSON.stringify(A)))}catch(e){}
+  if(!A.pinId&&A.appId){const ap=APPS.find(x=>x.id===A.appId);if(ap&&ap.pinId)A.pinId=ap.pinId}
   if(A.pinId){const p=pinById(A.pinId);if(p){p.permitNo=no;p.manualPermit=false;p.status="permit";if(p.nov&&p.comply!=="complied"){p.comply="complied";p.complyDate=today();(p.followups=p.followups||[]).push({date:today(),action:"Obtained building permit",remarks:"Permit "+P.pno,by:""})}p.updated=new Date().toISOString();await DB.put(p);drawPins()}}
   toast("Posted as "+P.pno);renderCalc()}
 window.genClass=c=>!c?"":c<4?"Residential":c<6?"Educational/Recreational":c<9?"Institutional":c<12?"Commercial":c<18?"Industrial":c<23?"Cultural/Recreational":"Agricultural";
@@ -8674,7 +8679,9 @@ async function postOccupancy0(c){if(SYNC.handle&&SYNC.ok)await syncNow(true);if(
   if(!no){no=await nextOpNo();if(!confirm(`Post occupancy permit ${no} for ${c.name}? This logs it for the BFP list and reports.`))return}
   c.opNo=no;if(!keepDate)c.opDate=mdy(today());
   L.push({id:uid(),opNo:no,date:c.opDate,name:fmUp(c.name),bpNo:c.bpNo||c.permitNo||"",project:c.project||"",location:c.location||"",occupancy:c.occChar||c.occupancy||"",by:USER_NAME});
-  await DB.set("coLog",L);try{REPCFG.coLog=L}catch(e){}audit("post-op",no,c.name);if(c.assId){try{const x=assessCache.find(q=>q.id===c.assId);if(x){x.posted={pno:no,pt:"OP",date:c.opDate,by:USER_NAME};x.permitNo=no;x.updated=nowISO();await ADB.put(x)}}catch(e){}}if(c.appId){const a=APPS.find(x=>x.id===c.appId);if(a){a.permitNo=no;a.updated=nowISO();await saveApps()}}toast("Posted "+no);if(typeof renderCert==="function")renderCert()}
+  await DB.set("coLog",L);try{REPCFG.coLog=L}catch(e){}audit("post-op",no,c.name);if(c.assId){try{const x=assessCache.find(q=>q.id===c.assId);if(x){x.posted={pno:no,pt:"OP",date:c.opDate,by:USER_NAME};x.permitNo=no;x.updated=nowISO();await ADB.put(x)}}catch(e){}}if(c.appId){const a=APPS.find(x=>x.id===c.appId);if(a){a.permitNo=no;a.updated=nowISO();await saveApps()}}try{const ax=c.assId?assessCache.find(q=>q.id===c.assId):null,ap=c.appId?APPS.find(q=>q.id===c.appId):null;const ax2=!ax&&ap&&ap.assessId?assessCache.find(q=>q.id===ap.assessId):null;const pn=[ax&&ax.pinId,ap&&ap.pinId,ax2&&ax2.pinId,c.pinId].filter(Boolean).map(pinById).find(Boolean)||null;
+    if(pn){pn.opNo=no;if(pn.status!=="permit"){pn.status="permit";if(!pn.permitNo&&c.bpNo){pn.permitNo=c.bpNo;pn.manualPermit=!regByNo(c.bpNo)}}pn.updated=nowISO();await DB.put(pn);if(typeof drawPins==="function")drawPins()}}catch(e){console.warn("pin update",e)}
+  toast("Posted "+no);if(typeof renderCert==="function")renderCert()}
 
 /* ================= QR codes ================= */
 function qrSvg(text,px){try{const q=qrcode(0,"M");q.addData(String(text).normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\x20-\x7E\n]/g,""));q.make();const n=q.getModuleCount();
