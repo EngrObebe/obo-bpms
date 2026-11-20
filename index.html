@@ -5268,7 +5268,7 @@ function o01Html(c){const ul=(v,w,cls)=>`<span class="b1v ${cls||""}" style="min
   return front+(c.noBack?"":b01Back(c))}
 function o01Fields(c,f){return `<div class="row" style="gap:6px">${["Full Occupancy","Partial Occupancy"].map(k=>`<label class="pill"><input type="radio" name="o1kind" data-c="granted" value="${k}" ${c.granted===k||(!c.granted&&k[0]==="F")?"checked":""}> ${k.split(" ")[0].toUpperCase()}</label>`).join("")}</div>
   <div class="grid2">${f("opNo","Certificate No. (OP No.)","OP-1387-2611-0001")}${f("opDate","Date Issued","11-13-2026")}
-  <div class="row wide" style="grid-column:1/-1"><button class="btn small primary" id="cePostOp">Post occupancy permit (assign next OP No.)</button><span class="muted" style="font-size:12px">Logs it for the BFP list and the quarterly report</span></div>
+  <div class="row wide" style="grid-column:1/-1"><button class="btn small primary" id="cePostOp">Post occupancy permit</button>${opPostedChip(c)}</div>
   ${f("fsicNo","FSIC No.","R-1-10317-5112717")}${f("fsicDate","FSIC Date Issued","11-13-2026")}${f("fees","Fees Paid (₱)","1700")}${f("orNo","Official Receipt No.")}${f("datePaid","Date Paid","11-13-2026")}
   ${f("bpNo","Building Permit No.","BP-1387-2506-0021")}${f("bpDate","BP dated","06-23-2025")}
   ${f("name","Name of Owner","",1)}${f("project","Name of Project","",1)}${f("completion","Date of Completion")}${f("signDate","Date under the signature","11-13-2026")}
@@ -5352,7 +5352,7 @@ function renderCert(){const c=CT;
   const typeBtns=Object.entries(CERT_TYPES).map(([k,l])=>`<button class="btn small" data-ct="${k}" aria-pressed="${c.type===k}">${esc(l)}</button>`).join("");
   let flds=`<div class="grid2">`;
   if(c.type==="acc")flds+=`<label class="f wide"><span>Accessory permit type</span><select data-c="acc">${Object.entries(ACC_KINDS).map(([k,v])=>`<option value="${k}" ${c.acc===k?"selected":""}>${esc(v[0])}</option>`).join("")}</select></label>`;
-  if(c.type==="op"||c.type==="co")flds+=f("opNo","Occupancy Permit No.","OP-1387-2610-0001")+f("opDate","OP date (Date Issued)","10/13/2026")+`<div class="row wide" style="grid-column:1/-1"><button class="btn small primary" id="cePostOp">Post occupancy permit (assign next OP No.)</button><span class="muted" style="font-size:12px">Logs it for the BFP list and the quarterly report</span></div>`;
+  if(c.type==="op"||c.type==="co")flds+=f("opNo","Occupancy Permit No.","OP-1387-2610-0001")+f("opDate","OP date (Date Issued)","10/13/2026")+`<div class="row wide" style="grid-column:1/-1"><button class="btn small primary" id="cePostOp">Post occupancy permit</button>${opPostedChip(c)}</div>`;
   if(c.type!=="op"&&c.type!=="co")flds+=f("permitNo","Permit No.")+f("dateIssued","Date Issued");
   if(c.type==="op"||c.type==="co")flds+=f("bpNo","Building Permit No.")+f("bpDate","BP Date Issued");
   flds+=f("name","Name of Permittee / Owner","",1)+f("project","Name of Project","",1)+f("location","Location of Project","",1);
@@ -8646,7 +8646,7 @@ async function appOnPost(A_,pno,date){if(!A_)return;if(!A_.appId)await linkAsses
 
 /* ================= Occupancy permit numbering ================= */
 async function nextOpNo(){const now=new Date(),yy=String(now.getFullYear()).slice(2),mm=String(now.getMonth()+1).padStart(2,"0");
-  let L=[];try{L=(await DB.get("coLog"))||[]}catch(e){}const nums=[...L.map(x=>x.opNo),...REG.filter(r=>r.opNo).map(r=>r.opNo)].map(s=>String(s||"").match(new RegExp(`^OP-\\d+-${yy}\\d\\d-(\\d+)$`))).filter(Boolean).map(m=>+m[1]);
+  let L=[],C=[];try{L=(await DB.get("coLog"))||[]}catch(e){}try{C=((await DB.get("certs"))||[]).filter(c=>c.opNo)}catch(e){}const nums=[...L.map(x=>x.opNo),...C.map(c=>c.opNo),...REG.filter(r=>r.opNo).map(r=>r.opNo)].map(s=>String(s||"").match(new RegExp(`^OP-\\d+-${yy}\\d\\d-(\\d+)$`))).filter(Boolean).map(m=>+m[1]);
   let base=0;try{const b=(await DB.get("opBase"))||{};base=+b[yy]||0}catch(e){}
   return`OP-${TOWN_CODE}-${yy}${mm}-${String(Math.max(base,nums.length?Math.max(...nums):0)+1).padStart(4,"0")}`}
 /* occupancy-only assessment → Certificate of Occupancy (OP no. assigned there); works for old BPs not in the register */
@@ -8660,6 +8660,11 @@ async function occFromAssess(x){if(!x.ctrl)return toast("Save the assessment fir
   const ex=((await DB.get("certs").catch(()=>null))||[]).find(q=>q.type==="op01"&&q.assId===x.id);if(ex)c={...c,...ex,fees:c.fees,orNo:c.orNo||ex.orNo,datePaid:c.datePaid||ex.datePaid};
   $("#calc").hidden=true;openCert(c)}
 async function postOccupancy(c){if(!await postLock())return;try{await postOccupancy0(c)}finally{await postUnlock()}}
+/* is the OP number on this certificate actually posted (in the occupancy log)? */
+function opPostedChip(c){const n=String(c.opNo||"").trim().toUpperCase();if(!n)return`<span class="muted" style="font-size:12px">Assigns the next OP No. and logs it for the BFP list and reports</span>`;
+  const L=(typeof REPCFG!=="undefined"&&REPCFG.coLog)||[];const u=L.find(x=>String(x.opNo).toUpperCase()===n);
+  return u?(fmUp(u.name)===fmUp(c.name)?`<span class="chip" style="background:#e3f5e9;color:#1b6b3a">✓ ${esc(n)} is POSTED (${esc(u.date||"")})</span>`:`<span class="chip" style="background:#fde8e8;color:#a32020">⚠ ${esc(n)} is posted for ${esc(u.name)}</span>`)
+   :`<span class="chip" style="background:#fff4d6;color:#8a5a00">${esc(n)} — NOT YET POSTED. Press Post to log it.</span>`}
 async function postOccupancy0(c){if(SYNC.handle&&SYNC.ok)await syncNow(true);if(!c.name){toast("Enter the permittee first");return}
   let L=(await DB.get("coLog").catch(()=>null))||[];const typed=String(c.opNo||"").trim().toUpperCase();let no="",keepDate=false;
   if(typed){const used=L.find(x=>String(x.opNo).toUpperCase()===typed);
@@ -8669,7 +8674,7 @@ async function postOccupancy0(c){if(SYNC.handle&&SYNC.ok)await syncNow(true);if(
   if(!no){no=await nextOpNo();if(!confirm(`Post occupancy permit ${no} for ${c.name}? This logs it for the BFP list and reports.`))return}
   c.opNo=no;if(!keepDate)c.opDate=mdy(today());
   L.push({id:uid(),opNo:no,date:c.opDate,name:fmUp(c.name),bpNo:c.bpNo||c.permitNo||"",project:c.project||"",location:c.location||"",occupancy:c.occChar||c.occupancy||"",by:USER_NAME});
-  await DB.set("coLog",L);audit("post-op",no,c.name);if(c.assId){try{const x=assessCache.find(q=>q.id===c.assId);if(x){x.posted={pno:no,pt:"OP",date:c.opDate,by:USER_NAME};x.permitNo=no;x.updated=nowISO();await ADB.put(x)}}catch(e){}}if(c.appId){const a=APPS.find(x=>x.id===c.appId);if(a){a.permitNo=no;a.updated=nowISO();await saveApps()}}toast("Posted "+no);if(typeof renderCert==="function")renderCert()}
+  await DB.set("coLog",L);try{REPCFG.coLog=L}catch(e){}audit("post-op",no,c.name);if(c.assId){try{const x=assessCache.find(q=>q.id===c.assId);if(x){x.posted={pno:no,pt:"OP",date:c.opDate,by:USER_NAME};x.permitNo=no;x.updated=nowISO();await ADB.put(x)}}catch(e){}}if(c.appId){const a=APPS.find(x=>x.id===c.appId);if(a){a.permitNo=no;a.updated=nowISO();await saveApps()}}toast("Posted "+no);if(typeof renderCert==="function")renderCert()}
 
 /* ================= QR codes ================= */
 function qrSvg(text,px){try{const q=qrcode(0,"M");q.addData(String(text).normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\x20-\x7E\n]/g,""));q.make();const n=q.getModuleCount();
