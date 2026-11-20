@@ -8660,9 +8660,14 @@ async function occFromAssess(x){if(!x.ctrl)return toast("Save the assessment fir
   const ex=((await DB.get("certs").catch(()=>null))||[]).find(q=>q.type==="op01"&&q.assId===x.id);if(ex)c={...c,...ex,fees:c.fees,orNo:c.orNo||ex.orNo,datePaid:c.datePaid||ex.datePaid};
   $("#calc").hidden=true;openCert(c)}
 async function postOccupancy(c){if(!await postLock())return;try{await postOccupancy0(c)}finally{await postUnlock()}}
-async function postOccupancy0(c){if(SYNC.handle&&SYNC.ok)await syncNow(true);if(c.opNo&&!confirm(`Replace ${c.opNo} with a new occupancy permit number?`))return;
-  if(!c.name){toast("Enter the permittee first");return}const no=await nextOpNo();if(!confirm(`Post occupancy permit ${no} for ${c.name}? This logs it for the BFP list and reports.`))return;
-  c.opNo=no;c.opDate=mdy(today());const L=(await DB.get("coLog").catch(()=>null))||[];
+async function postOccupancy0(c){if(SYNC.handle&&SYNC.ok)await syncNow(true);if(!c.name){toast("Enter the permittee first");return}
+  let L=(await DB.get("coLog").catch(()=>null))||[];const typed=String(c.opNo||"").trim().toUpperCase();let no="",keepDate=false;
+  if(typed){const used=L.find(x=>String(x.opNo).toUpperCase()===typed);
+    if(used&&fmUp(used.name)===fmUp(c.name)){if(!confirm(`${typed} is already POSTED for ${c.name}.\n\nOK = replace it with a NEW occupancy permit number\nCancel = keep ${typed} (nothing changes)`))return;L=L.filter(x=>x!==used);audit("op-replaced",typed,c.name)}
+    else if(used){alert(`${typed} is already used by ${used.name}.\nThe next free number will be assigned instead.`)}
+    else if(/^OP-\d+-\d{4}-\d+$/.test(typed)){if(confirm(`This certificate already has ${typed} (typed in), but it is not yet posted.\n\nOK = post ${typed} — log it for the BFP list and reports\nCancel = assign the next number instead`)){no=typed;keepDate=!!c.opDate}}}
+  if(!no){no=await nextOpNo();if(!confirm(`Post occupancy permit ${no} for ${c.name}? This logs it for the BFP list and reports.`))return}
+  c.opNo=no;if(!keepDate)c.opDate=mdy(today());
   L.push({id:uid(),opNo:no,date:c.opDate,name:fmUp(c.name),bpNo:c.bpNo||c.permitNo||"",project:c.project||"",location:c.location||"",occupancy:c.occChar||c.occupancy||"",by:USER_NAME});
   await DB.set("coLog",L);audit("post-op",no,c.name);if(c.assId){try{const x=assessCache.find(q=>q.id===c.assId);if(x){x.posted={pno:no,pt:"OP",date:c.opDate,by:USER_NAME};x.permitNo=no;x.updated=nowISO();await ADB.put(x)}}catch(e){}}if(c.appId){const a=APPS.find(x=>x.id===c.appId);if(a){a.permitNo=no;a.updated=nowISO();await saveApps()}}toast("Posted "+no);if(typeof renderCert==="function")renderCert()}
 
